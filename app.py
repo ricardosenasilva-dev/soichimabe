@@ -70,7 +70,6 @@ SERIES_TURMAS = [
 ]
 
 TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
-OPCOES_FUNCAO_GOE = ["GOE", "AOE", "PROF. READAPTADO"]
 
 
 # --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (CSV) ---
@@ -201,7 +200,10 @@ else:
     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
 
   # Garantir AOE e Gestão GOE padrão caso não existam
-  if not (st.session_state.credenciais_df["Perfil"] == "AOE").any():
+  if not (
+      (st.session_state.credenciais_df["Perfil"] == "AOE").any()
+      or (st.session_state.credenciais_df["Cargo"] == "AOE").any()
+  ):
     novo_aoe = pd.DataFrame([{
         "Nome": "AOE Padrão",
         "Perfil": "AOE",
@@ -287,7 +289,8 @@ else:
   st.header(f"🔑 Acesso: {escolha}")
 
   usuarios_filtrados = st.session_state.credenciais_df[
-      st.session_state.credenciais_df["Perfil"] == perfil_atual
+      (st.session_state.credenciais_df["Perfil"] == perfil_atual)
+      | (st.session_state.credenciais_df["Cargo"] == perfil_atual)
   ]
 
   if usuarios_filtrados.empty:
@@ -315,6 +318,7 @@ else:
         SENHA_MESTRE = "@Reff_068835"
 
         if senha_digitada == SENHA_MESTRE or senha_digitada == senha_correta:
+          # Se for primeiro acesso ou se estiver logando com a senha padrão cadastrada, exigir alteração
           if primeiro_acesso_val or senha_digitada != SENHA_MESTRE:
             st.session_state[f"exigir_troca_senha_{usuario_selecionado}"] = (
                 primeiro_acesso_val
@@ -334,11 +338,15 @@ else:
     if st.session_state.get(f"autenticado_{perfil_atual}", False):
       usuario_ativo = st.session_state[f"usuario_ativo_{perfil_atual}"]
 
+      # Verificação unificada de Troca de Senha Obrigatória no primeiro acesso para qualquer usuário
       if st.session_state.get(
           f"exigir_troca_senha_{usuario_ativo}", False
       ) or st.session_state.credenciais_df.loc[
           (st.session_state.credenciais_df["Nome"] == usuario_ativo)
-          & (st.session_state.credenciais_df["Perfil"] == perfil_atual),
+          & (
+              (st.session_state.credenciais_df["Perfil"] == perfil_atual)
+              | (st.session_state.credenciais_df["Cargo"] == perfil_atual)
+          ),
           "primeiro_acesso",
       ].values[
           0
@@ -373,7 +381,10 @@ else:
             else:
               st.session_state.credenciais_df.loc[
                   (st.session_state.credenciais_df["Nome"] == usuario_ativo)
-                  & (st.session_state.credenciais_df["Perfil"] == perfil_atual),
+                  & (
+                      (st.session_state.credenciais_df["Perfil"] == perfil_atual)
+                      | (st.session_state.credenciais_df["Cargo"] == perfil_atual)
+                  ),
                   ["Senha", "primeiro_acesso"],
               ] = [nova_senha_1, False]
               st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
@@ -403,6 +414,7 @@ else:
             aba_gestao_equipe,
             aba_professores,
             aba_goe_cad,
+            aba_aoe_cad,
             aba_ocorrencias_gestao,
             aba_relatorios,
         ) = st.tabs([
@@ -410,6 +422,7 @@ else:
             "👔 Gestão da Equipe Gestora",
             "👩‍🏫 Gestão de Docentes",
             "👤 Gestão de GOE",
+            "👤 Gestão de AOE",
             "🚨 Arquivo de Ocorrências & Chat",
             "📈 Risco e Auditoria",
         ])
@@ -804,14 +817,7 @@ else:
             with st.form("form_cad_goe", clear_on_submit=True):
               nome_goe = st.text_input("📝 Nome Completo:")
               senha_goe = st.text_input("🔒 Senha:", type="password")
-              funcao_goe = st.selectbox(
-                  "📌 Função:",
-                  options=OPCOES_FUNCAO_GOE,
-                  key="funcao_goe_gestao",
-              )
-              turno_goe = st.selectbox(
-                  "⏰ Período:", options=TURNOS_GOE, key="turno_goe_gestao"
-              )
+              turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
               if st.form_submit_button("💾 Salvar GOE", type="primary"):
                 if nome_goe and senha_goe:
                   novo_a = pd.DataFrame([{
@@ -821,7 +827,7 @@ else:
                       "Disciplinas": "Nenhuma",
                       "Series": "Nenhuma",
                       "Turno": turno_goe,
-                      "Cargo": funcao_goe,
+                      "Cargo": "GOE",
                       "primeiro_acesso": True,
                   }])
                   st.session_state.credenciais_df = pd.concat(
@@ -860,6 +866,108 @@ else:
                   )
                   st.success("Removido!")
                   st.rerun()
+
+        with aba_aoe_cad:
+          st.subheader("👤 Gestão de AOE")
+          col_cad_aoe_gestao, col_exc_aoe_gestao = st.columns(2)
+          with col_cad_aoe_gestao:
+            with st.form("form_cad_aoe_gestao", clear_on_submit=True):
+              nome_aoe_g = st.text_input("📝 Nome Completo do AOE:")
+              senha_aoe_g = st.text_input("🔒 Senha de Acesso:", type="password")
+              turno_aoe_g = st.selectbox(
+                  "⏰ Período / Turno:",
+                  options=TURNOS_GOE,
+                  key="turno_aoe_cad_gestao",
+              )
+              if st.form_submit_button("💾 Salvar AOE", type="primary"):
+                if nome_aoe_g.strip() and senha_aoe_g.strip():
+                  novo_aoe_df = pd.DataFrame([{
+                      "Nome": nome_aoe_g.strip(),
+                      "Perfil": "AOE",
+                      "Senha": senha_aoe_g.strip(),
+                      "Disciplinas": "Nenhuma",
+                      "Series": "Nenhuma",
+                      "Turno": turno_aoe_g,
+                      "Cargo": "AOE",
+                      "primeiro_acesso": True,
+                  }])
+                  st.session_state.credenciais_df = pd.concat(
+                      [st.session_state.credenciais_df, novo_aoe_df],
+                      ignore_index=True,
+                  )
+                  st.session_state.credenciais_df.to_csv(
+                      CREDENCIAIS_CSV, index=False
+                  )
+                  registrar_log(
+                      f"Gestão cadastrou novo AOE: {nome_aoe_g.strip()}",
+                      "N/A",
+                      usuario_ativo,
+                  )
+                  st.success(
+                      f"✔️ AOE {nome_aoe_g.strip()} cadastrado(a) com sucesso!"
+                  )
+                  st.rerun()
+                else:
+                  st.error("Preencha todos os campos obrigatórios.")
+          with col_exc_aoe_gestao:
+            df_aoe_ex = st.session_state.credenciais_df[
+                (st.session_state.credenciais_df["Perfil"] == "AOE")
+                | (st.session_state.credenciais_df["Cargo"] == "AOE")
+            ]
+            if not df_aoe_ex.empty:
+              with st.form("form_exc_aoe_gestao", clear_on_submit=True):
+                aoe_rem_sel = st.selectbox(
+                    "Selecione o AOE para remover:",
+                    options=df_aoe_ex["Nome"].tolist(),
+                )
+                if st.form_submit_button("🗑️ Remover AOE", type="secondary"):
+                  st.session_state.credenciais_df = (
+                      st.session_state.credenciais_df[
+                          ~(
+                              (
+                                  st.session_state.credenciais_df["Nome"]
+                                  == aoe_rem_sel
+                              )
+                              & (
+                                  (
+                                      st.session_state.credenciais_df[
+                                          "Perfil"
+                                      ]
+                                      == "AOE"
+                                  )
+                                  | (
+                                      st.session_state.credenciais_df[
+                                          "Cargo"
+                                      ]
+                                      == "AOE"
+                                  )
+                              )
+                          )
+                      ]
+                  )
+                  st.session_state.credenciais_df.to_csv(
+                      CREDENCIAIS_CSV, index=False
+                  )
+                  registrar_log(
+                      f"Gestão removeu AOE: {aoe_rem_sel}",
+                      "N/A",
+                      usuario_ativo,
+                  )
+                  st.success(f"🗑️ AOE {aoe_rem_sel} removido com sucesso!")
+                  st.rerun()
+            else:
+              st.info("Nenhum AOE cadastrado.")
+
+          st.markdown("---")
+          st.markdown("### 📋 Lista Atual da Equipe AOE")
+          if not df_aoe_ex.empty:
+            st.dataframe(
+                df_aoe_ex[["Nome", "Cargo", "Turno"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+          else:
+            st.info("Nenhum AOE cadastrado.")
 
         with aba_ocorrencias_gestao:
           col_oc_tit, col_oc_btn = st.columns([4, 1])
@@ -1829,11 +1937,6 @@ else:
               senha_novo_goe = st.text_input(
                   "🔒 Senha de Acesso:", type="password"
               )
-              funcao_novo_goe = st.selectbox(
-                  "📌 Função:",
-                  options=OPCOES_FUNCAO_GOE,
-                  key="funcao_novo_goe_cad",
-              )
               turno_novo_goe = st.selectbox(
                   "⏰ Período / Turno:",
                   options=TURNOS_GOE,
@@ -1849,7 +1952,7 @@ else:
                       "Disciplinas": "Nenhuma",
                       "Series": "Nenhuma",
                       "Turno": turno_novo_goe,
-                      "Cargo": funcao_novo_goe,
+                      "Cargo": "GOE",
                       "primeiro_acesso": True,
                   }])
                   st.session_state.credenciais_df = pd.concat(
@@ -1860,12 +1963,12 @@ else:
                       CREDENCIAIS_CSV, index=False
                   )
                   registrar_log(
-                      f"GOE cadastrou novo membro: {nome_novo_goe.strip()} ({funcao_novo_goe})",
+                      f"GOE cadastrou novo membro: {nome_novo_goe.strip()}",
                       "N/A",
                       usuario_ativo,
                   )
                   st.success(
-                      f"✔️ Membro(a) {nome_novo_goe.strip()} ({funcao_novo_goe}) cadastrado(a) com"
+                      f"✔️ Membro(a) {nome_novo_goe.strip()} cadastrado(a) com"
                       " sucesso!"
                   )
                   st.rerun()
