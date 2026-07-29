@@ -30,6 +30,14 @@ DISCIPLINAS_SEDUC_COMPLETA = [
     "Projeto de Vida", "Eletivas", "Tecnologia e Inovação", "Orientação de Convivência"
 ]
 
+CARGOS_GESTAO_SEDUC = [
+    "Diretor de Escola",
+    "Vice-Diretor de Escola",
+    "Coordenador Pedagógico",
+    "Coordenador de Organização Escolar (COE)",
+    "Secretário de Escola"
+]
+
 SERIES_TURMAS = [
     "1ª Série A", "1ª Série B", "1ª Série C", "1ª Série D",
     "2ª Série A", "2ª Série B", "2ª Série C", "2ª Série D",
@@ -63,10 +71,10 @@ st.session_state.alunos = carregar_todos_alunos()
 # --- REPOSIÇÃO DE SEGURANÇA E CREDENCIAIS ---
 def resetar_credenciais():
     df_cred = pd.DataFrame([
-        {"Nome": "Diretor Padrão", "Perfil": "Gestão", "Senha": "gestao123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral"},
-        {"Nome": "Prof. Carlos Silva", "Perfil": "Professores", "Senha": "professor123", "Disciplinas": "Matemática", "Series": "1ª Série A", "Turno": "Nenhum"},
-        {"Nome": "Administrador Master", "Perfil": "Administrador", "Senha": "admin123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral"},
-        {"Nome": "GOE Padrão", "Perfil": "GOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã"}
+        {"Nome": "Diretor Padrão", "Perfil": "Gestão", "Senha": "gestao123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Diretor de Escola"},
+        {"Nome": "Prof. Carlos Silva", "Perfil": "Professores", "Senha": "professor123", "Disciplinas": "Matemática", "Series": "1ª Série A", "Turno": "Nenhum", "Cargo": "Nenhum"},
+        {"Nome": "Administrador Master", "Perfil": "Administrador", "Senha": "admin123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Administrador Master"},
+        {"Nome": "GOE Padrão", "Perfil": "GOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "GOE"}
     ])
     df_cred.to_csv(CREDENCIAIS_CSV, index=False)
     return df_cred
@@ -77,6 +85,10 @@ else:
     st.session_state.credenciais_df = pd.read_csv(CREDENCIAIS_CSV)
     if "Turno" not in st.session_state.credenciais_df.columns:
         st.session_state.credenciais_df["Turno"] = "Manhã"
+        st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+    if "Cargo" not in st.session_state.credenciais_df.columns:
+        st.session_state.credenciais_df["Cargo"] = "Nenhum"
+        st.session_state.credenciais_df.loc[st.session_state.credenciais_df["Perfil"] == "Gestão", "Cargo"] = "Diretor de Escola"
         st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
     st.session_state.credenciais_df["Perfil"] = st.session_state.credenciais_df["Perfil"].replace({"AOE": "GOE"})
 
@@ -147,8 +159,8 @@ else:
             
             # --- CONTEÚDO EXCLUSIVO PARA GESTÃO / ADMINISTRADOR ---
             if perfil_atual in ["Gestão", "Administrador"]:
-                aba_alunos, aba_professores, aba_aoe, aba_ocorrencias_gestao, aba_relatorios = st.tabs([
-                    "📋 Painel e Alunos", "👩‍🏫 Gestão de Docentes", "👤 Gestão de GOE", "🚨 Arquivo de Ocorrências & Chat", "📈 Risco e Auditoria"
+                aba_alunos, aba_gestao_equipe, aba_professores, aba_aoe, aba_ocorrencias_gestao, aba_relatorios = st.tabs([
+                    "📋 Painel e Alunos", "👔 Gestão da Equipe Gestora", "👩‍🏫 Gestão de Docentes", "👤 Gestão de GOE", "🚨 Arquivo de Ocorrências & Chat", "📈 Risco e Auditoria"
                 ])
                 
                 with aba_alunos:
@@ -243,6 +255,59 @@ else:
                         else:
                             st.info("Nenhum aluno encontrado.")
                 
+                with aba_gestao_equipe:
+                    st.subheader("👔 Cadastro e Gerenciamento da Equipe Gestora (SEDUC-SP)")
+                    col_cad_gestao, col_exc_gestao = st.columns(2)
+                    
+                    with col_cad_gestao:
+                        st.markdown("### ➕ Cadastrar Membro da Gestão")
+                        with st.form("form_cad_membro_gestao", clear_on_submit=True):
+                            nome_gestao = st.text_input("📝 Nome Completo do Gestor:")
+                            senha_gestao = st.text_input("🔒 Senha de Acesso:", type="password")
+                            cargo_gestao = st.selectbox("📌 Cargo SEDUC-SP:", options=CARGOS_GESTAO_SEDUC)
+                            turno_gestao = st.selectbox("⏰ Turno / Período:", options=["Integral", "Manhã", "Tarde", "Noite"], key="turno_gestao_cad")
+                            
+                            if st.form_submit_button("💾 Salvar Gestor", type="primary"):
+                                if nome_gestao.strip() and senha_gestao.strip():
+                                    novo_gestor_df = pd.DataFrame([{
+                                        "Nome": nome_gestao.strip(),
+                                        "Perfil": "Gestão",
+                                        "Senha": senha_gestao.strip(),
+                                        "Disciplinas": "Todas",
+                                        "Series": "Todas",
+                                        "Turno": turno_gestao,
+                                        "Cargo": cargo_gestao
+                                    }])
+                                    st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_gestor_df], ignore_index=True)
+                                    st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+                                    registrar_log(f"Gestão cadastrou novo membro gestor: {nome_gestao.strip()} ({cargo_gestao})", "N/A", usuario_ativo)
+                                    st.success(f"✔️ Gestor(a) {nome_gestao.strip()} ({cargo_gestao}) cadastrado(a) com sucesso!")
+                                    st.rerun()
+                                else:
+                                    st.error("Preencha todos os campos obrigatórios.")
+                                    
+                    with col_exc_gestao:
+                        st.markdown("### 🗑️ Remover Membro da Gestão")
+                        df_membros_gestao = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "Gestão"]
+                        if not df_membros_gestao.empty:
+                            with st.form("form_exc_membro_gestao", clear_on_submit=True):
+                                gestor_rem_selecionado = st.selectbox("Selecione o Membro da Gestão para remover:", options=df_membros_gestao["Nome"].tolist(), key="exc_gestao_sel")
+                                if st.form_submit_button("🗑️ Remover Gestor", type="secondary"):
+                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == gestor_rem_selecionado) & (st.session_state.credenciais_df["Perfil"] == "Gestão"))]
+                                    st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+                                    registrar_log(f"Gestão removeu membro gestor: {gestor_rem_selecionado}", "N/A", usuario_ativo)
+                                    st.success(f"🗑️ Gestor {gestor_rem_selecionado} removido com sucesso!")
+                                    st.rerun()
+                        else:
+                            st.info("Nenhum membro da gestão cadastrado.")
+                            
+                    st.markdown("---")
+                    st.markdown("### 📋 Lista Atual da Equipe Gestora")
+                    if not df_membros_gestao.empty:
+                        st.dataframe(df_membros_gestao[["Nome", "Cargo", "Turno"]], use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Nenhum gestor cadastrado.")
+
                 with aba_professores:
                     st.subheader("👩‍🏫 Gestão de Docentes")
                     col_cad_prof, col_exc_prof = st.columns(2)
@@ -268,7 +333,8 @@ else:
                                         "Senha": senha_prof.strip(), 
                                         "Disciplinas": ", ".join(disc_prof), 
                                         "Series": ", ".join(lista_turmas_salvar) if lista_turmas_salvar else "Nenhuma", 
-                                        "Turno": "Nenhum"
+                                        "Turno": "Nenhum",
+                                        "Cargo": "Professor"
                                     }])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_p], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
@@ -300,7 +366,7 @@ else:
                             turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
                             if st.form_submit_button("💾 Salvar", type="primary"):
                                 if nome_goe and senha_goe:
-                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe}])
+                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": "GOE"}])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_a], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     st.success("Membro GOE cadastrado!")
@@ -645,7 +711,8 @@ else:
                                         "Senha": senha_novo_goe.strip(),
                                         "Disciplinas": "Nenhuma",
                                         "Series": "Nenhuma",
-                                        "Turno": turno_novo_goe
+                                        "Turno": turno_novo_goe,
+                                        "Cargo": "GOE"
                                     }])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_membro_df], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
