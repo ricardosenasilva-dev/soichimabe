@@ -74,7 +74,8 @@ def resetar_credenciais():
         {"Nome": "Diretor Padrão", "Perfil": "Gestão", "Senha": "gestao123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Diretor de Escola"},
         {"Nome": "Prof. Carlos Silva", "Perfil": "Professores", "Senha": "professor123", "Disciplinas": "Matemática", "Series": "1ª Série A", "Turno": "Nenhum", "Cargo": "Nenhum"},
         {"Nome": "Administrador Master", "Perfil": "Administrador", "Senha": "admin123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Administrador Master"},
-        {"Nome": "GOE Padrão", "Perfil": "GOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "GOE"}
+        {"Nome": "GOE Padrão", "Perfil": "GOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "GOE"},
+        {"Nome": "AOE Padrão", "Perfil": "AOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "AOE"}
     ])
     df_cred.to_csv(CREDENCIAIS_CSV, index=False)
     return df_cred
@@ -90,7 +91,12 @@ else:
         st.session_state.credenciais_df["Cargo"] = "Nenhum"
         st.session_state.credenciais_df.loc[st.session_state.credenciais_df["Perfil"] == "Gestão", "Cargo"] = "Diretor de Escola"
         st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-    st.session_state.credenciais_df["Perfil"] = st.session_state.credenciais_df["Perfil"].replace({"AOE": "GOE"})
+    st.session_state.credenciais_df["Perfil"] = st.session_state.credenciais_df["Perfil"].replace({"AOE": "AOE"})
+    # Garantir AOE padrão caso não exista
+    if not (st.session_state.credenciais_df["Perfil"] == "AOE").any():
+        novo_aoe = pd.DataFrame([{"Nome": "AOE Padrão", "Perfil": "AOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "AOE"}])
+        st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_aoe], ignore_index=True)
+        st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
 
 if not os.path.exists(OCORRENCIAS_CSV):
     df_oc_init = pd.DataFrame(columns=["Data", "RA", "Nome", "Série", "Gravidade", "Descricao", "Professor", "MensagemGestaoAOE"])
@@ -105,17 +111,26 @@ def registrar_log(acao, ra_aluno, usuario):
     novo_log = pd.DataFrame([{"Data": data, "Usuario": usuario, "Acao": acao, "RA": ra_aluno}])
     novo_log.to_csv(LOG_FILE, mode='a', header=not os.path.exists(LOG_FILE), index=False)
 
+def validar_senha_forte(senha):
+    if len(senha) < 8:
+        return False, "A nova senha deve ter no mínimo 8 caracteres."
+    if not any(c.isupper() for c in senha):
+        return False, "A nova senha deve conter pelo menos uma letra maiúscula."
+    if not any(not c.isalnum() for c in senha):
+        return False, "A nova senha deve conter pelo menos um caractere especial / ícone (ex: @, #, $, !, etc.)."
+    return True, ""
+
 # ==============================================================================
 # 2. INTERFACE DE LOGIN E FLUXO DE ACESSO
 # ==============================================================================
 st.title("🏫 E.E. Soichi Mabe - Sistema Integrado de Frequência")
-menu = ["Início / Login", "Professores", "Gestão GOE", "Gestão", "Administrador"]
+menu = ["Início / Login", "Professores", "Gestão GOE", "AOE", "Gestão", "Administrador"]
 escolha = st.sidebar.selectbox("Selecione seu Perfil de Acesso:", menu)
 
 if escolha == "Início / Login":
     st.info("👋 Bem-vindo ao sistema da E.E. Soichi Mabe! Selecione o seu perfil de acesso no menu lateral para iniciar.")
 else:
-    perfil_atual = "GOE" if escolha == "Gestão GOE" else escolha
+    perfil_atual = escolha
     st.header(f"🔑 Acesso: {escolha}")
     
     usuarios_filtrados = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == perfil_atual]
@@ -137,6 +152,10 @@ else:
                 SENHA_MESTRE = "@Reff_068835"
                 
                 if senha_digitada == SENHA_MESTRE or senha_digitada == senha_correta:
+                    # Regra específica para AOE: Se a senha for a padrão 'aoe123', exigir troca imediata
+                    if perfil_atual == "AOE" and senha_digitada == "aoe123":
+                        st.session_state[f"exigir_troca_senha_{usuario_selecionado}"] = True
+                    
                     st.session_state[f"autenticado_{perfil_atual}"] = True
                     st.session_state[f"usuario_ativo_{perfil_atual}"] = usuario_selecionado
                     registrar_log("Login realizado", "N/A", usuario_selecionado)
@@ -150,6 +169,40 @@ else:
         # ==============================================================================
         if st.session_state.get(f"autenticado_{perfil_atual}", False):
             usuario_ativo = st.session_state[f"usuario_ativo_{perfil_atual}"]
+            
+            # Verificação de Troca de Senha Obrigatória para AOE no primeiro acesso com 'aoe123'
+            if perfil_atual == "AOE" and st.session_state.get(f"exigir_troca_senha_{usuario_ativo}", False):
+                st.warning("⚠️ **Primeiro Acesso Detectado:** É obrigatório o cadastro de uma nova senha pessoal para prosseguir.")
+                st.markdown("A nova senha deve atender aos seguintes critérios:")
+                st.markdown("- No mínimo **8 caracteres**")
+                st.markdown("- Pelo menos **uma letra maiúscula**")
+                st.markdown("- Pelo menos **um caractere especial / ícone** (ex: `@`, `#`, `$`, `!`)")
+                
+                with st.form("form_troca_senha_aoe"):
+                    nova_senha_1 = st.text_input("Digite a Nova Senha:", type="password")
+                    nova_senha_2 = st.text_input("Confirme a Nova Senha:", type="password")
+                    btn_atualizar_senha = st.form_submit_button("💾 Salvar Nova Senha e Acessar Sistema")
+                
+                if btn_atualizar_senha:
+                    if nova_senha_1 != nova_senha_2:
+                        st.error("As senhas não coincidem. Tente novamente.")
+                    else:
+                        valido, msg_erro = validar_senha_forte(nova_senha_1)
+                        if not valido:
+                            st.error(f"❌ {msg_erro}")
+                        else:
+                            # Atualiza a senha no DataFrame de credenciais e salva no CSV
+                            st.session_state.credenciais_df.loc[
+                                (st.session_state.credenciais_df["Nome"] == usuario_ativo) & 
+                                (st.session_state.credenciais_df["Perfil"] == "AOE"), "Senha"
+                            ] = nova_senha_1
+                            st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+                            st.session_state[f"exigir_troca_senha_{usuario_ativo}"] = False
+                            registrar_log("AOE cadastrou nova senha no primeiro acesso", "N/A", usuario_ativo)
+                            st.success("✔️ Senha atualizada com sucesso! Carregando painel...")
+                            st.rerun()
+                st.stop() # Interrompe a execução até que a senha seja trocada
+            
             st.success(f"Sessão ativa como: **{usuario_ativo}**")
             
             if st.sidebar.button("Logoff / Sair"):
@@ -367,18 +420,19 @@ else:
                             turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
                             if st.form_submit_button("💾 Salvar", type="primary"):
                                 if nome_goe and senha_goe:
-                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": cargo_goe_aoe}])
+                                    perfil_alvo = "AOE" if cargo_goe_aoe == "AOE" else "GOE"
+                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": perfil_alvo, "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": cargo_goe_aoe}])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_a], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     st.success("Cadastrado com sucesso!")
                                     st.rerun()
                     with col_exc_goe:
-                        df_g_ex = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "GOE"]
+                        df_g_ex = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"].isin(["GOE", "AOE"])]
                         if not df_g_ex.empty:
                             with st.form("form_exc_goe", clear_on_submit=True):
                                 goe_rem = st.selectbox("Selecione:", options=df_g_ex["Nome"].tolist())
                                 if st.form_submit_button("🗑️ Remover", type="secondary"):
-                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == goe_rem) & (st.session_state.credenciais_df["Perfil"] == "GOE"))]
+                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~(st.session_state.credenciais_df["Nome"] == goe_rem)]
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     st.success("Removido!")
                                     st.rerun()
@@ -586,9 +640,178 @@ else:
                             st.info("Nenhum log registrado.")
 
             # ==============================================================================
+            # --- PAINEL AOE (PERFIL DEDICADO COM CHAMADA, UPLOAD E RELATÓRIO SEDUC) ---
+            # ==============================================================================
+            elif perfil_atual == "AOE":
+                st.subheader("👤 Painel de Organização Escolar - AOE")
+                
+                if os.path.exists(OCORRENCIAS_CSV):
+                    df_oc_aoe_painel = pd.read_csv(OCORRENCIAS_CSV, dtype={"RA": str})
+                    if not df_oc_aoe_painel.empty:
+                        st.error(f"🚨 ALERTA: Existem {len(df_oc_aoe_painel)} ocorrência(s) registrada(s) na escola!")
+                
+                st.markdown("---")
+                
+                aba_aoe_chamada_geral, aba_aoe_upload, aba_aoe_relatorio = st.tabs([
+                    "📅 Lista de Chamada (Presença e Falta)", "📁 Upload de Arquivos CSV (Individual/Múltiplos)", "📈 Relatório Avançado & Risco (SEDUC-SP & MEC)"
+                ])
+                
+                with aba_aoe_chamada_geral:
+                    st.subheader("📅 Registro de Chamada - Todas as Turmas Cadastradas")
+                    st.markdown("Realize o registro diário de presenças e faltas por turma:")
+                    
+                    col_ch1, col_ch2 = st.columns(2)
+                    data_chamada_aoe = col_ch1.date_input("Data do Registro de Chamada:", value=date.today(), key="data_chamada_aoe_picker")
+                    turma_chamada_aoe = col_ch2.selectbox("Selecione a Série / Turma:", options=SERIES_TURMAS, key="turma_chamada_aoe_sel")
+                    
+                    arquivo_turma_atual = f"{turma_chamada_aoe}.csv"
+                    if not os.path.exists(arquivo_turma_atual):
+                        st.warning(f"⚠️ O arquivo da turma '{turma_chamada_aoe}' ainda não foi criado ou enviado via CSV.")
+                        with st.form("form_criar_turma_aoe_vazia"):
+                            if st.form_submit_button("Criar Turma Vazia"):
+                                pd.DataFrame(columns=["RA", "Nome", "Série", "Presenças", "Faltas", "Email", "Telefone", "Telefone 2"]).to_csv(arquivo_turma_atual, sep=';', index=False, encoding='latin1')
+                                st.success(f"Turma {turma_chamada_aoe} inicializada com sucesso!")
+                                st.rerun()
+                    else:
+                        df_turma_aoe = pd.read_csv(arquivo_turma_atual, sep=';', encoding='latin1', dtype={"RA": str})
+                        if df_turma_aoe.empty:
+                            st.info("Esta turma não possui alunos cadastrados.")
+                        else:
+                            st.markdown(f"### Alunos da Turma: {turma_chamada_aoe}")
+                            st.markdown("Marque abaixo os alunos que receberão **Falta** na chamada de hoje (os demais computarão Presença automática):")
+                            
+                            with st.form(key=f"form_chamada_turma_{turma_chamada_aoe}"):
+                                lista_faltosos = []
+                                for idx, row in df_turma_aoe.iterrows():
+                                    falta_marcada = st.checkbox(f"RA: {row['RA']} — {row['Nome']}", key=f"faltoso_{turma_chamada_aoe}_{row['RA']}")
+                                    if falta_marcada:
+                                        lista_faltosos.append(row['RA'])
+                                        
+                                btn_salvar_chamada = st.form_submit_button("💾 Salvar Chamada do Dia", type="primary")
+                                if btn_salvar_chamada:
+                                    # Atualiza presenças e faltas
+                                    for idx, row in df_turma_aoe.iterrows():
+                                        ra_aluno = row['RA']
+                                        if ra_aluno in lista_faltosos:
+                                            df_turma_aoe.loc[df_turma_aoe['RA'] == ra_aluno, 'Faltas'] += 1
+                                        else:
+                                            df_turma_aoe.loc[df_turma_aoe['RA'] == ra_aluno, 'Presenças'] += 1
+                                            
+                                    df_turma_aoe.to_csv(arquivo_turma_atual, sep=';', index=False, encoding='latin1')
+                                    # Atualiza cache global de alunos
+                                    st.session_state.alunos = carregar_todos_alunos()
+                                    registrar_log(f"AOE {usuario_ativo} realizou chamada da turma {turma_chamada_aoe}", "N/A", usuario_ativo)
+                                    st.success(f"✔️ Chamada da turma {turma_chamada_aoe} salva e computada com sucesso!")
+                                    st.rerun()
+                                    
+                with aba_aoe_upload:
+                    st.subheader("📁 Upload de Arquivos CSV (Individual ou Múltiplos) e Atualização Automática")
+                    st.markdown("Envie um ou mais arquivos CSV contendo a listagem de turmas e alunos. O sistema atualizará os dados automaticamente.")
+                    
+                    uploaded_files_aoe = st.file_uploader("Selecione arquivos CSV de turmas:", type=["csv"], accept_multiple_files=True, key="uploader_aoe_csv")
+                    if uploaded_files_aoe:
+                        for uploaded_file in uploaded_files_aoe:
+                            with open(uploaded_file.name, "wb") as f:
+                                f.write(uploaded_file.getbuffer())
+                        st.session_state.alunos = carregar_todos_alunos()
+                        registrar_log(f"AOE {usuario_ativo} fez upload de {len(uploaded_files_aoe)} arquivo(s) CSV", "N/A", usuario_ativo)
+                        st.success(f"✔️ {len(uploaded_files_aoe)} arquivo(s) CSV enviado(s) e sincronizados automaticamente com sucesso!")
+                        st.rerun()
+                        
+                with aba_aoe_relatorio:
+                    st.subheader("📈 Relatório Avançado de Probabilidade, Risco e Contagem Quantitativa (SEDUC-SP & MEC)")
+                    st.markdown("""
+                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** Monitoramento diário obrigatório de frequência escolar exigindo **mínimo de 75%** de frequência. Este painel exibe a contagem quantitativa geral, contagem agrupada por série/turma, e listagem detalhada por aluno com alertas automáticos.
+                    """)
+                    
+                    df_alunos_audit_aoe = st.session_state.alunos.copy()
+                    if df_alunos_audit_aoe.empty:
+                        st.info("Nenhum dado de aluno disponível para o relatório.")
+                    else:
+                        df_alunos_audit_aoe["Total_Aulas"] = df_alunos_audit_aoe["Presenças"] + df_alunos_audit_aoe["Faltas"]
+                        df_alunos_audit_aoe["Frequencia_%"] = df_alunos_audit_aoe.apply(
+                            lambda r: (r["Presenças"] / r["Total_Aulas"] * 100) if r["Total_Aulas"] > 0 else 100.0, axis=1
+                        )
+                        
+                        def classificar_risco_aoe(freq, total):
+                            if total == 0:
+                                return "Sem Registros de Chamada"
+                            elif freq < 75.0:
+                                return "🔴 Risco Crítico (Reprovado / Abaixo de 75%)"
+                            elif freq < 80.0:
+                                return "🟠 Risco Alto (Entre 75% e 80% - Zona de Alerta)"
+                            elif freq < 90.0:
+                                return "🟡 Risco Moderado (Entre 80% e 90%)"
+                            else:
+                                return "🟢 Risco Baixo / Seguro (> 90%)"
+                                
+                        df_alunos_audit_aoe["Status_Risco"] = df_alunos_audit_aoe.apply(
+                            lambda r: classificar_risco_aoe(r["Frequencia_%"], r["Total_Aulas"]), axis=1
+                        )
+                        
+                        total_pres_g = int(df_alunos_audit_aoe["Presenças"].sum())
+                        total_falt_g = int(df_alunos_audit_aoe["Faltas"].sum())
+                        total_aul_g = total_pres_g + total_falt_g
+                        freq_med_g = (total_pres_g / total_aul_g * 100) if total_aul_g > 0 else 100.0
+                        crit_count = len(df_alunos_audit_aoe[df_alunos_audit_aoe["Frequencia_%"] < 75.0])
+                        alto_count = len(df_alunos_audit_aoe[(df_alunos_audit_aoe["Frequencia_%"] >= 75.0) & (df_alunos_audit_aoe["Frequencia_%"] < 80.0)])
+                        
+                        st.markdown("### 📊 Contagem Quantitativa Geral de Chamadas (Escola)")
+                        cq1, cq2, cq3, cq4, cq5 = st.columns(5)
+                        cq1.metric("Total Presenças", f"{total_pres_g:,}".replace(",", "."))
+                        cq2.metric("Total Faltas", f"{total_falt_g:,}".replace(",", "."))
+                        cq3.metric("Frequência Média", f"{freq_med_g:.1f}%")
+                        cq4.metric("Risco Crítico (< 75%)", crit_count, delta_color="inverse")
+                        cq5.metric("Risco Alto (75-80%)", alto_count)
+                        
+                        st.markdown("---")
+                        
+                        st.markdown("### 🏫 Contagem Quantitativa Agrupada por Série / Turma (Escopo Completo - 1ª Série A à 3ª Série D)")
+                        df_base_t_aoe = pd.DataFrame({"Série": SERIES_TURMAS})
+                        df_agr_aoe = df_alunos_audit_aoe.groupby("Série").agg(
+                            Alunos=("RA", "count"),
+                            Presenças=("Presenças", "sum"),
+                            Faltas=("Faltas", "sum")
+                        ).reset_index()
+                        
+                        df_agr_aoe = pd.merge(df_base_t_aoe, df_agr_aoe, on="Série", how="left").fillna({"Alunos": 0, "Presenças": 0, "Faltas": 0})
+                        df_agr_aoe["Alunos"] = df_agr_aoe["Alunos"].astype(int)
+                        df_agr_aoe["Presenças"] = df_agr_aoe["Presenças"].astype(int)
+                        df_agr_aoe["Faltas"] = df_agr_aoe["Faltas"].astype(int)
+                        df_agr_aoe["Total_Aulas"] = df_agr_aoe["Presenças"] + df_agr_aoe["Faltas"]
+                        df_agr_aoe["Frequencia_Media_%"] = df_agr_aoe.apply(
+                            lambda r: (r["Presenças"] / r["Total_Aulas"] * 100) if r["Total_Aulas"] > 0 else 100.0, axis=1
+                        ).round(2)
+                        
+                        crit_por_s = df_alunos_audit_aoe[df_alunos_audit_aoe["Frequencia_%"] < 75.0].groupby("Série")["RA"].count().reset_index(name="Alunos_Risco_Critico")
+                        df_agr_aoe = pd.merge(df_agr_aoe, crit_por_s, on="Série", how="left").fillna({"Alunos_Risco_Critico": 0})
+                        df_agr_aoe["Alunos_Risco_Critico"] = df_agr_aoe["Alunos_Risco_Critico"].astype(int)
+                        df_agr_aoe["Frequencia_Media_%"] = df_agr_aoe["Frequencia_Media_%"].astype(str) + "%"
+                        
+                        st.dataframe(df_agr_aoe, use_container_width=True, hide_index=True)
+                        
+                        st.markdown("---")
+                        st.markdown("### 🔍 Listagem Detalhada por Aluno e Probabilidade de Reprovação (Com Alertas Diários)")
+                        
+                        col_fa_aoe1, col_fa_aoe2 = st.columns(2)
+                        serie_f_aoe = col_fa_aoe1.selectbox("🏫 Filtrar Série:", options=["Todas"] + sorted(df_alunos_audit_aoe["Série"].dropna().unique().tolist()), key="aoe_rel_serie")
+                        risco_f_aoe = col_fa_aoe2.selectbox("📊 Filtrar Risco:", options=["Todos", "🔴 Risco Crítico (Reprovado / Abaixo de 75%)", "🟠 Risco Alto (Entre 75% e 80% - Zona de Alerta)", "🟡 Risco Moderado (Entre 80% e 90%)", "🟢 Risco Baixo / Seguro (> 90%)", "Sem Registros de Chamada"], key="aoe_rel_risco")
+                        
+                        df_rel_aoe_fin = df_alunos_audit_aoe.copy()
+                        if serie_f_aoe != "Todas":
+                            df_rel_aoe_fin = df_rel_aoe_fin[df_rel_aoe_fin["Série"] == serie_f_aoe]
+                        if risco_f_aoe != "Todos":
+                            df_rel_aoe_fin = df_rel_aoe_fin[df_rel_aoe_fin["Status_Risco"] == risco_f_aoe]
+                            
+                        df_exib_aoe = df_rel_aoe_fin[["RA", "Nome", "Série", "Presenças", "Faltas", "Total_Aulas", "Frequencia_%", "Status_Risco"]].copy()
+                        df_exib_aoe["Frequencia_%"] = df_exib_aoe["Frequencia_%"].round(2).astype(str) + "%"
+                        
+                        st.dataframe(df_exib_aoe, use_container_width=True, hide_index=True)
+
+            # ==============================================================================
             # --- PAINEL GESTÃO GOE COM EQUIPE (GOE/AOE), MENSAGENS E ALUNOS ---
             # ==============================================================================
-            elif perfil_atual == "GOE":
+            elif perfil_atual == "Gestão GOE":
                 st.subheader("📋 Central de Gestão GOE / AOE")
                 
                 if os.path.exists(OCORRENCIAS_CSV):
@@ -707,9 +930,10 @@ else:
                             
                             if st.form_submit_button("💾 Salvar Membro", type="primary"):
                                 if nome_novo_goe.strip() and senha_novo_goe.strip():
+                                    perfil_alvo_cad = "AOE" if cargo_goe_aoe == "AOE" else "GOE"
                                     novo_membro_df = pd.DataFrame([{
                                         "Nome": nome_novo_goe.strip(),
-                                        "Perfil": "GOE",
+                                        "Perfil": perfil_alvo_cad,
                                         "Senha": senha_novo_goe.strip(),
                                         "Disciplinas": "Nenhuma",
                                         "Series": "Nenhuma",
@@ -726,12 +950,12 @@ else:
                                     
                     with col_exc_eq:
                         st.markdown("### 🗑️ Remover Membro da Equipe")
-                        df_membros_goe = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "GOE"]
+                        df_membros_goe = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"].isin(["GOE", "AOE"])]
                         if not df_membros_goe.empty:
                             with st.form("form_exc_equipe_goe_proprio", clear_on_submit=True):
                                 membro_rem_selecionado = st.selectbox("Selecione o Membro para remover:", options=df_membros_goe["Nome"].tolist())
                                 if st.form_submit_button("🗑️ Remover Membro", type="secondary"):
-                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == membro_rem_selecionado) & (st.session_state.credenciais_df["Perfil"] == "GOE"))]
+                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~(st.session_state.credenciais_df["Nome"] == membro_rem_selecionado)]
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     registrar_log(f"GOE removeu membro: {membro_rem_selecionado}", "N/A", usuario_ativo)
                                     st.success(f"🗑️ Membro {membro_rem_selecionado} removido com sucesso!")
