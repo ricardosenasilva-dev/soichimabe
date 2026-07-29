@@ -7,7 +7,7 @@ from datetime import datetime, date
 # ==============================================================================
 # 1. CONFIGURAÇÕES INICIAIS, LAYOUT (UI/UX) E LOGOTIPO
 # ==============================================================================
-st.set_page_config(page_title="E.E. Soichi Mabe", page_icon="🏫", layout="wide")
+st.set_page_config(page_title="Gestão Escolar SP - E.E. Soichi Mabe", layout="wide")
 
 CREDENCIAIS_CSV = "dados_credenciais.csv"
 LOG_FILE = "log_auditoria.csv"
@@ -357,19 +357,20 @@ else:
                             st.info("Nenhum professor cadastrado.")
                             
                 with aba_aoe:
-                    st.subheader("👤 Gestão de Gerentes de Organização Escolar (GOE)")
+                    st.subheader("👤 Gestão de GOE e AOE")
                     col_cad_goe, col_exc_goe = st.columns(2)
                     with col_cad_goe:
                         with st.form("form_cad_goe", clear_on_submit=True):
                             nome_goe = st.text_input("📝 Nome Completo:")
                             senha_goe = st.text_input("🔒 Senha:", type="password")
+                            cargo_goe_aoe = st.selectbox("📌 Função / Cargo:", options=["GOE", "AOE"])
                             turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
                             if st.form_submit_button("💾 Salvar", type="primary"):
                                 if nome_goe and senha_goe:
-                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": "GOE"}])
+                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": cargo_goe_aoe}])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_a], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-                                    st.success("Membro GOE cadastrado!")
+                                    st.success("Cadastrado com sucesso!")
                                     st.rerun()
                     with col_exc_goe:
                         df_g_ex = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "GOE"]
@@ -483,7 +484,7 @@ else:
                         st.rerun()
 
                     st.markdown("""
-                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas chamadas realizadas pelos GOE, identificando turmas e alunos em risco de reprovação por falta para acionamento imediato da Busca Ativa.
+                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas chamadas realizadas pelos GOE/AOE, identificando turmas e alunos em risco de reprovação por falta para acionamento imediato da Busca Ativa.
                     """)
                     
                     df_alunos_audit = st.session_state.alunos.copy()
@@ -585,20 +586,20 @@ else:
                             st.info("Nenhum log registrado.")
 
             # ==============================================================================
-            # --- PAINEL GESTÃO GOE COM EQUIPE, MENSAGENS SEPARADAS E ALUNOS ---
+            # --- PAINEL GESTÃO GOE COM EQUIPE (GOE/AOE), MENSAGENS E ALUNOS ---
             # ==============================================================================
             elif perfil_atual == "GOE":
-                st.subheader("📋 Central de Gestão GOE (Gerência de Organização Escolar)")
+                st.subheader("📋 Central de Gestão GOE / AOE")
                 
                 if os.path.exists(OCORRENCIAS_CSV):
                     df_oc_goe = pd.read_csv(OCORRENCIAS_CSV, dtype={"RA": str})
                     if not df_oc_goe.empty:
-                        st.error(f"🚨 ALERTA GOE: Existem {len(df_oc_goe)} ocorrência(s) recente(s) registrada(s) na escola!")
+                        st.error(f"🚨 ALERTA: Existem {len(df_oc_goe)} ocorrência(s) recente(s) registrada(s) na escola!")
                 
                 st.markdown("---")
                 
                 aba_goe_alunos, aba_goe_equipe, aba_goe_mensagens, aba_goe_chamada = st.tabs([
-                    "📋 Painel e Alunos", "👥 Cadastrar/Gerenciar Equipe GOE", "💬 Enviar Mensagens Separadas", "📅 Registro de Chamada"
+                    "📋 Painel e Alunos", "👥 Cadastrar/Gerenciar Equipe (GOE / AOE)", "💬 Enviar Mensagens Separadas", "📅 Registro de Chamada"
                 ])
                 
                 with aba_goe_alunos:
@@ -693,17 +694,18 @@ else:
                             st.info("Nenhum aluno encontrado.")
 
                 with aba_goe_equipe:
-                    st.subheader("👥 Cadastro e Gerenciamento da Equipe GOE")
+                    st.subheader("👥 Cadastro e Gerenciamento da Equipe (GOE / AOE)")
                     col_cad_eq, col_exc_eq = st.columns(2)
                     
                     with col_cad_eq:
-                        st.markdown("### ➕ Cadastrar Membro na Equipe GOE")
+                        st.markdown("### ➕ Cadastrar Membro (GOE ou AOE)")
                         with st.form("form_cad_equipe_goe_proprio", clear_on_submit=True):
-                            nome_novo_goe = st.text_input("📝 Nome Completo do Membro GOE:")
+                            nome_novo_goe = st.text_input("📝 Nome Completo do Membro:")
                             senha_novo_goe = st.text_input("🔒 Senha de Acesso:", type="password")
+                            cargo_goe_aoe = st.selectbox("📌 Função / Cargo:", options=["GOE", "AOE"], key="funcao_goe_aoe_cad")
                             turno_novo_goe = st.selectbox("⏰ Período / Turno:", options=TURNOS_GOE, key="turno_novo_goe_cad")
                             
-                            if st.form_submit_button("💾 Salvar Membro GOE", type="primary"):
+                            if st.form_submit_button("💾 Salvar Membro", type="primary"):
                                 if nome_novo_goe.strip() and senha_novo_goe.strip():
                                     novo_membro_df = pd.DataFrame([{
                                         "Nome": nome_novo_goe.strip(),
@@ -712,34 +714,34 @@ else:
                                         "Disciplinas": "Nenhuma",
                                         "Series": "Nenhuma",
                                         "Turno": turno_novo_goe,
-                                        "Cargo": "GOE"
+                                        "Cargo": cargo_goe_aoe
                                     }])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_membro_df], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-                                    registrar_log(f"GOE cadastrou novo membro de equipe: {nome_novo_goe.strip()}", "N/A", usuario_ativo)
-                                    st.success(f"✔️ Membro(a) {nome_novo_goe.strip()} cadastrado(a) na equipe GOE com sucesso!")
+                                    registrar_log(f"GOE cadastrou novo membro: {nome_novo_goe.strip()} ({cargo_goe_aoe})", "N/A", usuario_ativo)
+                                    st.success(f"✔️ Membro(a) {nome_novo_goe.strip()} ({cargo_goe_aoe}) cadastrado(a) com sucesso!")
                                     st.rerun()
                                 else:
                                     st.error("Preencha todos os campos obrigatórios.")
                                     
                     with col_exc_eq:
-                        st.markdown("### 🗑️ Remover Membro da Equipe GOE")
+                        st.markdown("### 🗑️ Remover Membro da Equipe")
                         df_membros_goe = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "GOE"]
                         if not df_membros_goe.empty:
                             with st.form("form_exc_equipe_goe_proprio", clear_on_submit=True):
-                                membro_rem_selecionado = st.selectbox("Selecione o Membro GOE para remover:", options=df_membros_goe["Nome"].tolist())
+                                membro_rem_selecionado = st.selectbox("Selecione o Membro para remover:", options=df_membros_goe["Nome"].tolist())
                                 if st.form_submit_button("🗑️ Remover Membro", type="secondary"):
                                     st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == membro_rem_selecionado) & (st.session_state.credenciais_df["Perfil"] == "GOE"))]
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-                                    registrar_log(f"GOE removeu membro de equipe: {membro_rem_selecionado}", "N/A", usuario_ativo)
+                                    registrar_log(f"GOE removeu membro: {membro_rem_selecionado}", "N/A", usuario_ativo)
                                     st.success(f"🗑️ Membro {membro_rem_selecionado} removido com sucesso!")
                                     st.rerun()
                         else:
-                            st.info("Nenhum membro GOE cadastrado.")
+                            st.info("Nenhum membro cadastrado.")
                             
                     st.markdown("---")
-                    st.markdown("### 📋 Lista Atual da Equipe GOE")
-                    st.dataframe(df_membros_goe[["Nome", "Turno"]], use_container_width=True, hide_index=True)
+                    st.markdown("### 📋 Lista Atual da Equipe (GOE / AOE)")
+                    st.dataframe(df_membros_goe[["Nome", "Cargo", "Turno"]], use_container_width=True, hide_index=True)
 
                 with aba_goe_mensagens:
                     st.subheader("💬 Central de Mensagens e Comunicados Separados (GOE)")
@@ -748,7 +750,7 @@ else:
                     with st.form("form_enviar_comunicado_goe", clear_on_submit=True):
                         grupo_destino = st.selectbox(
                             "🎯 Selecione o Grupo de Destino:",
-                            options=["Equipe GOE (Sua Equipe)", "Professores", "Gestão"]
+                            options=["Equipe GOE/AOE", "Professores", "Gestão"]
                         )
                         mensagem_texto = st.text_area("📝 Escreva a Mensagem / Comunicado:")
                         
@@ -769,7 +771,7 @@ else:
                                 st.error("A mensagem não pode estar vazia.")
                                 
                     st.markdown("---")
-                    st.markdown("### 📬 Histórico de Comunicados Enviados pelo GOE")
+                    st.markdown("### 📬 Histórico de Comunicados Enviados")
                     if os.path.exists(COMUNICADOS_CSV):
                         df_comunicados_hist = pd.read_csv(COMUNICADOS_CSV)
                         if not df_comunicados_hist.empty:
