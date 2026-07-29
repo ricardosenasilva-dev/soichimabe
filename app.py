@@ -747,7 +747,14 @@ else:
                     st.subheader("💬 Central de Mensagens e Comunicados Separados (GOE)")
                     st.markdown("Envie comunicados direcionados especificamente para cada grupo da escola:")
                     
+                    todos_cadastrados_app = st.session_state.credenciais_df["Nome"].tolist() if "credenciais_df" in st.session_state and not st.session_state.credenciais_df.empty else [usuario_ativo]
+                    
                     with st.form("form_enviar_comunicado_goe", clear_on_submit=True):
+                        remetente_selecionado = st.selectbox(
+                            "👤 Nome do Remetente (Selecione entre todos os cadastrados no app):",
+                            options=todos_cadastrados_app,
+                            index=todos_cadastrados_app.index(usuario_ativo) if usuario_ativo in todos_cadastrados_app else 0
+                        )
                         grupo_destino = st.selectbox(
                             "🎯 Selecione o Grupo de Destino:",
                             options=["Equipe GOE/AOE", "Professores", "Gestão"]
@@ -759,13 +766,13 @@ else:
                             if mensagem_texto.strip():
                                 novo_comunicado = pd.DataFrame([{
                                     "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                    "Remetente": f"{usuario_ativo} (GOE)",
+                                    "Remetente": remetente_selecionado,
                                     "GrupoDestino": grupo_destino,
                                     "Mensagem": mensagem_texto.strip()
                                 }])
                                 novo_comunicado.to_csv(COMUNICADOS_CSV, mode='a', header=not os.path.exists(COMUNICADOS_CSV), index=False)
-                                registrar_log(f"GOE enviou comunicado para o grupo: {grupo_destino}", "N/A", usuario_ativo)
-                                st.success(f"✔️ Comunicado enviado com sucesso para o grupo **{grupo_destino}**!")
+                                registrar_log(f"Comunicado enviado por {remetente_selecionado} para o grupo: {grupo_destino}", "N/A", usuario_ativo)
+                                st.success(f"✔️ Comunicado enviado com sucesso por **{remetente_selecionado}** para o grupo **{grupo_destino}**!")
                                 st.rerun()
                             else:
                                 st.error("A mensagem não pode estar vazia.")
