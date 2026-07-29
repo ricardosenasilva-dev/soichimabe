@@ -7,7 +7,7 @@ from datetime import datetime, date
 # ==============================================================================
 # 1. CONFIGURAÇÕES INICIAIS, LAYOUT (UI/UX) E LOGOTIPO
 # ==============================================================================
-st.set_page_config(page_title="Gestão Escolar SP - E.E. Soichi Mabe", layout="wide")
+st.set_page_config(page_title="E.E. Soichi Mabe", page_icon="🏫", layout="wide")
 
 CREDENCIAIS_CSV = "dados_credenciais.csv"
 LOG_FILE = "log_auditoria.csv"
