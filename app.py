@@ -74,7 +74,7 @@ def resetar_credenciais():
         {"Nome": "Diretor Padrão", "Perfil": "Gestão", "Senha": "gestao123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Diretor de Escola"},
         {"Nome": "Prof. Carlos Silva", "Perfil": "Professores", "Senha": "professor123", "Disciplinas": "Matemática", "Series": "1ª Série A", "Turno": "Nenhum", "Cargo": "Nenhum"},
         {"Nome": "Administrador Master", "Perfil": "Administrador", "Senha": "admin123", "Disciplinas": "Todas", "Series": "Todas", "Turno": "Integral", "Cargo": "Administrador Master"},
-        {"Nome": "GOE Padrão", "Perfil": "GOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "GOE"},
+        {"Nome": "GOE Padrão", "Perfil": "Gestão GOE", "Senha": "goe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "GOE"},
         {"Nome": "AOE Padrão", "Perfil": "AOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "AOE"}
     ])
     df_cred.to_csv(CREDENCIAIS_CSV, index=False)
@@ -91,8 +91,8 @@ else:
         st.session_state.credenciais_df["Cargo"] = "Nenhum"
         st.session_state.credenciais_df.loc[st.session_state.credenciais_df["Perfil"] == "Gestão", "Cargo"] = "Diretor de Escola"
         st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-    st.session_state.credenciais_df["Perfil"] = st.session_state.credenciais_df["Perfil"].replace({"AOE": "AOE"})
-    # Garantir AOE padrão caso não exista
+    
+    # Garantir AOE e Gestão GOE padrão caso não existam
     if not (st.session_state.credenciais_df["Perfil"] == "AOE").any():
         novo_aoe = pd.DataFrame([{"Nome": "AOE Padrão", "Perfil": "AOE", "Senha": "aoe123", "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": "Manhã", "Cargo": "AOE"}])
         st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_aoe], ignore_index=True)
@@ -191,7 +191,6 @@ else:
                         if not valido:
                             st.error(f"❌ {msg_erro}")
                         else:
-                            # Atualiza a senha no DataFrame de credenciais e salva no CSV
                             st.session_state.credenciais_df.loc[
                                 (st.session_state.credenciais_df["Nome"] == usuario_ativo) & 
                                 (st.session_state.credenciais_df["Perfil"] == "AOE"), "Senha"
@@ -201,7 +200,7 @@ else:
                             registrar_log("AOE cadastrou nova senha no primeiro acesso", "N/A", usuario_ativo)
                             st.success("✔️ Senha atualizada com sucesso! Carregando painel...")
                             st.rerun()
-                st.stop() # Interrompe a execução até que a senha seja trocada
+                st.stop()
             
             st.success(f"Sessão ativa como: **{usuario_ativo}**")
             
@@ -212,7 +211,7 @@ else:
             
             # --- CONTEÚDO EXCLUSIVO PARA GESTÃO / ADMINISTRADOR ---
             if perfil_atual in ["Gestão", "Administrador"]:
-                aba_alunos, aba_gestao_equipe, aba_professores, aba_aoe, aba_ocorrencias_gestao, aba_relatorios = st.tabs([
+                aba_alunos, aba_gestao_equipe, aba_professores, aba_goe_cad, aba_ocorrencias_gestao, aba_relatorios = st.tabs([
                     "📋 Painel e Alunos", "👔 Gestão da Equipe Gestora", "👩‍🏫 Gestão de Docentes", "👤 Gestão de GOE", "🚨 Arquivo de Ocorrências & Chat", "📈 Risco e Auditoria"
                 ])
                 
@@ -409,30 +408,28 @@ else:
                         else:
                             st.info("Nenhum professor cadastrado.")
                             
-                with aba_aoe:
-                    st.subheader("👤 Gestão de GOE e AOE")
+                with aba_goe_cad:
+                    st.subheader("👤 Gestão de GOE")
                     col_cad_goe, col_exc_goe = st.columns(2)
                     with col_cad_goe:
                         with st.form("form_cad_goe", clear_on_submit=True):
                             nome_goe = st.text_input("📝 Nome Completo:")
                             senha_goe = st.text_input("🔒 Senha:", type="password")
-                            cargo_goe_aoe = st.selectbox("📌 Função / Cargo:", options=["GOE", "AOE"])
                             turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
-                            if st.form_submit_button("💾 Salvar", type="primary"):
+                            if st.form_submit_button("💾 Salvar GOE", type="primary"):
                                 if nome_goe and senha_goe:
-                                    perfil_alvo = "AOE" if cargo_goe_aoe == "AOE" else "GOE"
-                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": perfil_alvo, "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": cargo_goe_aoe}])
+                                    novo_a = pd.DataFrame([{"Nome": nome_goe.strip(), "Perfil": "Gestão GOE", "Senha": senha_goe.strip(), "Disciplinas": "Nenhuma", "Series": "Nenhuma", "Turno": turno_goe, "Cargo": "GOE"}])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_a], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-                                    st.success("Cadastrado com sucesso!")
+                                    st.success("GOE cadastrado com sucesso!")
                                     st.rerun()
                     with col_exc_goe:
-                        df_g_ex = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"].isin(["GOE", "AOE"])]
+                        df_g_ex = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "Gestão GOE"]
                         if not df_g_ex.empty:
                             with st.form("form_exc_goe", clear_on_submit=True):
                                 goe_rem = st.selectbox("Selecione:", options=df_g_ex["Nome"].tolist())
-                                if st.form_submit_button("🗑️ Remover", type="secondary"):
-                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~(st.session_state.credenciais_df["Nome"] == goe_rem)]
+                                if st.form_submit_button("🗑️ Remover GOE", type="secondary"):
+                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == goe_rem) & (st.session_state.credenciais_df["Perfil"] == "Gestão GOE"))]
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     st.success("Removido!")
                                     st.rerun()
@@ -566,7 +563,6 @@ else:
                             lambda r: classificar_risco_reprovacao(r["Frequencia_%"], r["Total_Aulas"]), axis=1
                         )
                         
-                        total_geral_alunos = len(df_alunos_audit)
                         total_presencas_geral = int(df_alunos_audit["Presenças"].sum())
                         total_faltas_geral = int(df_alunos_audit["Faltas"].sum())
                         total_aulas_geral = total_presencas_geral + total_faltas_geral
@@ -574,7 +570,6 @@ else:
                         
                         criticos_count = len(df_alunos_audit[df_alunos_audit["Frequencia_%"] < 75.0])
                         altos_count = len(df_alunos_audit[(df_alunos_audit["Frequencia_%"] >= 75.0) & (df_alunos_audit["Frequencia_%"] < 80.0)])
-                        moderados_count = len(df_alunos_audit[(df_alunos_audit["Frequencia_%"] >= 80.0) & (df_alunos_audit["Frequencia_%"] < 90.0)])
                         
                         st.markdown("### 📊 Contagem Quantitativa Geral de Chamadas (Escola)")
                         col_q1, col_q2, col_q3, col_q4, col_q5 = st.columns(5)
@@ -585,7 +580,6 @@ else:
                         col_q5.metric("Risco Alto (75-80%)", altos_count)
                         
                         st.markdown("---")
-                        
                         st.markdown("### 🏫 Contagem Quantitativa Agrupada por Série / Turma (Escopo Completo - 1ª Série A à 3ª Série D)")
                         df_base_turmas = pd.DataFrame({"Série": SERIES_TURMAS})
                         
@@ -615,7 +609,6 @@ else:
                         st.dataframe(df_agrupado_serie, use_container_width=True, hide_index=True)
                         
                         st.markdown("---")
-                        
                         st.markdown("### 🔍 Listagem Detalhada por Aluno e Probabilidade de Reprovação")
                         col_fa1, col_fa2 = st.columns(2)
                         serie_filtro_rel = col_fa1.selectbox("🏫 Filtrar por Série:", options=["Todas"] + sorted(df_alunos_audit["Série"].dropna().unique().tolist()))
@@ -689,7 +682,6 @@ else:
                                         
                                 btn_salvar_chamada = st.form_submit_button("💾 Salvar Chamada do Dia", type="primary")
                                 if btn_salvar_chamada:
-                                    # Atualiza presenças e faltas
                                     for idx, row in df_turma_aoe.iterrows():
                                         ra_aluno = row['RA']
                                         if ra_aluno in lista_faltosos:
@@ -698,7 +690,6 @@ else:
                                             df_turma_aoe.loc[df_turma_aoe['RA'] == ra_aluno, 'Presenças'] += 1
                                             
                                     df_turma_aoe.to_csv(arquivo_turma_atual, sep=';', index=False, encoding='latin1')
-                                    # Atualiza cache global de alunos
                                     st.session_state.alunos = carregar_todos_alunos()
                                     registrar_log(f"AOE {usuario_ativo} realizou chamada da turma {turma_chamada_aoe}", "N/A", usuario_ativo)
                                     st.success(f"✔️ Chamada da turma {turma_chamada_aoe} salva e computada com sucesso!")
@@ -765,7 +756,6 @@ else:
                         cq5.metric("Risco Alto (75-80%)", alto_count)
                         
                         st.markdown("---")
-                        
                         st.markdown("### 🏫 Contagem Quantitativa Agrupada por Série / Turma (Escopo Completo - 1ª Série A à 3ª Série D)")
                         df_base_t_aoe = pd.DataFrame({"Série": SERIES_TURMAS})
                         df_agr_aoe = df_alunos_audit_aoe.groupby("Série").agg(
@@ -809,10 +799,10 @@ else:
                         st.dataframe(df_exib_aoe, use_container_width=True, hide_index=True)
 
             # ==============================================================================
-            # --- PAINEL GESTÃO GOE COM EQUIPE (GOE/AOE), MENSAGENS E ALUNOS ---
+            # --- PAINEL GESTÃO GOE (ESTRUTURA ORIGINAL RESTAURADA) ---
             # ==============================================================================
             elif perfil_atual == "Gestão GOE":
-                st.subheader("📋 Central de Gestão GOE / AOE")
+                st.subheader("📋 Central de Gestão GOE")
                 
                 if os.path.exists(OCORRENCIAS_CSV):
                     df_oc_goe = pd.read_csv(OCORRENCIAS_CSV, dtype={"RA": str})
@@ -822,7 +812,7 @@ else:
                 st.markdown("---")
                 
                 aba_goe_alunos, aba_goe_equipe, aba_goe_mensagens, aba_goe_chamada = st.tabs([
-                    "📋 Painel e Alunos", "👥 Cadastrar/Gerenciar Equipe (GOE / AOE)", "💬 Enviar Mensagens Separadas", "📅 Registro de Chamada"
+                    "📋 Painel e Alunos", "👥 Cadastrar/Gerenciar Equipe (GOE)", "💬 Enviar Mensagens Separadas", "📅 Registro de Chamada"
                 ])
                 
                 with aba_goe_alunos:
@@ -917,45 +907,43 @@ else:
                             st.info("Nenhum aluno encontrado.")
 
                 with aba_goe_equipe:
-                    st.subheader("👥 Cadastro e Gerenciamento da Equipe (GOE / AOE)")
+                    st.subheader("👥 Cadastro e Gerenciamento da Equipe GOE")
                     col_cad_eq, col_exc_eq = st.columns(2)
                     
                     with col_cad_eq:
-                        st.markdown("### ➕ Cadastrar Membro (GOE ou AOE)")
+                        st.markdown("### ➕ Cadastrar Membro GOE")
                         with st.form("form_cad_equipe_goe_proprio", clear_on_submit=True):
                             nome_novo_goe = st.text_input("📝 Nome Completo do Membro:")
                             senha_novo_goe = st.text_input("🔒 Senha de Acesso:", type="password")
-                            cargo_goe_aoe = st.selectbox("📌 Função / Cargo:", options=["GOE", "AOE"], key="funcao_goe_aoe_cad")
                             turno_novo_goe = st.selectbox("⏰ Período / Turno:", options=TURNOS_GOE, key="turno_novo_goe_cad")
                             
                             if st.form_submit_button("💾 Salvar Membro", type="primary"):
                                 if nome_novo_goe.strip() and senha_novo_goe.strip():
-                                    perfil_alvo_cad = "AOE" if cargo_goe_aoe == "AOE" else "GOE"
                                     novo_membro_df = pd.DataFrame([{
                                         "Nome": nome_novo_goe.strip(),
-                                        "Perfil": perfil_alvo_cad,
+                                        "Perfil": "Gestão GOE",
                                         "Senha": senha_novo_goe.strip(),
                                         "Disciplinas": "Nenhuma",
                                         "Series": "Nenhuma",
                                         "Turno": turno_novo_goe,
-                                        "Cargo": cargo_goe_aoe
+                                        "Cargo": "GOE"
                                     }])
                                     st.session_state.credenciais_df = pd.concat([st.session_state.credenciais_df, novo_membro_df], ignore_index=True)
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
-                                    registrar_log(f"GOE cadastrou novo membro: {nome_novo_goe.strip()} ({cargo_goe_aoe})", "N/A", usuario_ativo)
-                                    st.success(f"✔️ Membro(a) {nome_novo_goe.strip()} ({cargo_goe_aoe}) cadastrado(a) com sucesso!")
+                                    registrar_log(f"GOE cadastrou novo membro: {nome_novo_goe.strip()}", "N/A", usuario_ativo)
+                                    st.success(f"✔️ Membro(a) {nome_novo_goe.strip()} cadastrado(a) com sucesso!")
                                     st.rerun()
                                 else:
                                     st.error("Preencha todos os campos obrigatórios.")
                                     
                     with col_exc_eq:
-                        st.markdown("### 🗑️ Remover Membro da Equipe")
-                        df_membros_goe = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"].isin(["GOE", "AOE"])]
+                        st.markdown("### 🗑️ Remover Membro GOE")
+                        df_membros_goe = st.session_state.credenciais_df[st.session_state.credenciais_df["Perfil"] == "Gestão GOE"]
                         if not df_membros_goe.empty:
                             with st.form("form_exc_equipe_goe_proprio", clear_on_submit=True):
                                 membro_rem_selecionado = st.selectbox("Selecione o Membro para remover:", options=df_membros_goe["Nome"].tolist())
                                 if st.form_submit_button("🗑️ Remover Membro", type="secondary"):
-                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~(st.session_state.credenciais_df["Nome"] == membro_rem_selecionado)]
+                                    st.session_state.credenciais_df = st.session_state.credenciais_df[~((st.session_state.credenciais_df["Nome"] == membro_rem_selecionado) & (st.session_state.credenciais_df["Perfil"] == "Gestão GOE"))]
                                     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
                                     registrar_log(f"GOE removeu membro: {membro_rem_selecionado}", "N/A", usuario_ativo)
                                     st.success(f"🗑️ Membro {membro_rem_selecionado} removido com sucesso!")
@@ -964,7 +952,7 @@ else:
                             st.info("Nenhum membro cadastrado.")
                             
                     st.markdown("---")
-                    st.markdown("### 📋 Lista Atual da Equipe (GOE / AOE)")
+                    st.markdown("### 📋 Lista Atual da Equipe GOE")
                     st.dataframe(df_membros_goe[["Nome", "Cargo", "Turno"]], use_container_width=True, hide_index=True)
 
                 with aba_goe_mensagens:
@@ -981,7 +969,7 @@ else:
                         )
                         grupo_destino = st.selectbox(
                             "🎯 Selecione o Grupo de Destino:",
-                            options=["Equipe GOE/AOE", "Professores", "Gestão"]
+                            options=["Equipe GOE", "Professores", "Gestão"]
                         )
                         mensagem_texto = st.text_area("📝 Escreva a Mensagem / Comunicado:")
                         
