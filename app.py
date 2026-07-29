@@ -27,7 +27,7 @@ DISCIPLINAS_SEDUC_COMPLETA = [
     "Língua Portuguesa", "Matemática", "História", "Geografia", 
     "Ciências", "Biologia", "Física", "Química", "Arte", 
     "Educação Física", "Língua Inglesa", "Espanhol", "Filosofia", "Sociologia", 
-    "Projeto de Vida", "Eletivas", "Tecnologia e Inovação", "Orientação de Convivência"
+    "Projeto de Vida", "Eletivas", "Tecnologia e Inovação", "Orientação de Matemática", "Orientação de Português"
 ]
 
 CARGOS_GESTAO_SEDUC = [
