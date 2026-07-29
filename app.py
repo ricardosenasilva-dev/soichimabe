@@ -70,6 +70,7 @@ SERIES_TURMAS = [
 ]
 
 TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
+OPCOES_FUNCAO_GOE = ["GOE", "AOE", "PROF. READAPTADO"]
 
 
 # --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (CSV) ---
@@ -314,7 +315,6 @@ else:
         SENHA_MESTRE = "@Reff_068835"
 
         if senha_digitada == SENHA_MESTRE or senha_digitada == senha_correta:
-          # Se for primeiro acesso ou se estiver logando com a senha padrão cadastrada, exigir alteração
           if primeiro_acesso_val or senha_digitada != SENHA_MESTRE:
             st.session_state[f"exigir_troca_senha_{usuario_selecionado}"] = (
                 primeiro_acesso_val
@@ -334,7 +334,6 @@ else:
     if st.session_state.get(f"autenticado_{perfil_atual}", False):
       usuario_ativo = st.session_state[f"usuario_ativo_{perfil_atual}"]
 
-      # Verificação unificada de Troca de Senha Obrigatória no primeiro acesso para qualquer usuário
       if st.session_state.get(
           f"exigir_troca_senha_{usuario_ativo}", False
       ) or st.session_state.credenciais_df.loc[
@@ -805,7 +804,14 @@ else:
             with st.form("form_cad_goe", clear_on_submit=True):
               nome_goe = st.text_input("📝 Nome Completo:")
               senha_goe = st.text_input("🔒 Senha:", type="password")
-              turno_goe = st.selectbox("⏰ Período:", options=TURNOS_GOE)
+              funcao_goe = st.selectbox(
+                  "📌 Função:",
+                  options=OPCOES_FUNCAO_GOE,
+                  key="funcao_goe_gestao",
+              )
+              turno_goe = st.selectbox(
+                  "⏰ Período:", options=TURNOS_GOE, key="turno_goe_gestao"
+              )
               if st.form_submit_button("💾 Salvar GOE", type="primary"):
                 if nome_goe and senha_goe:
                   novo_a = pd.DataFrame([{
@@ -815,7 +821,7 @@ else:
                       "Disciplinas": "Nenhuma",
                       "Series": "Nenhuma",
                       "Turno": turno_goe,
-                      "Cargo": "GOE",
+                      "Cargo": funcao_goe,
                       "primeiro_acesso": True,
                   }])
                   st.session_state.credenciais_df = pd.concat(
@@ -1823,6 +1829,11 @@ else:
               senha_novo_goe = st.text_input(
                   "🔒 Senha de Acesso:", type="password"
               )
+              funcao_novo_goe = st.selectbox(
+                  "📌 Função:",
+                  options=OPCOES_FUNCAO_GOE,
+                  key="funcao_novo_goe_cad",
+              )
               turno_novo_goe = st.selectbox(
                   "⏰ Período / Turno:",
                   options=TURNOS_GOE,
@@ -1838,7 +1849,7 @@ else:
                       "Disciplinas": "Nenhuma",
                       "Series": "Nenhuma",
                       "Turno": turno_novo_goe,
-                      "Cargo": "GOE",
+                      "Cargo": funcao_novo_goe,
                       "primeiro_acesso": True,
                   }])
                   st.session_state.credenciais_df = pd.concat(
@@ -1849,12 +1860,12 @@ else:
                       CREDENCIAIS_CSV, index=False
                   )
                   registrar_log(
-                      f"GOE cadastrou novo membro: {nome_novo_goe.strip()}",
+                      f"GOE cadastrou novo membro: {nome_novo_goe.strip()} ({funcao_novo_goe})",
                       "N/A",
                       usuario_ativo,
                   )
                   st.success(
-                      f"✔️ Membro(a) {nome_novo_goe.strip()} cadastrado(a) com"
+                      f"✔️ Membro(a) {nome_novo_goe.strip()} ({funcao_novo_goe}) cadastrado(a) com"
                       " sucesso!"
                   )
                   st.rerun()
