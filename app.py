@@ -59,23 +59,10 @@ SERIES_TURMAS = [
     "1ª Série B",
     "1ª Série C",
     "1ª Série D",
-    "1ª Série E",
-    "1ª Série F",
-    "1ª Série G",
-    "1ª Série H",
-    "1ª Série I",
-    "1ª Série J",
-    "1ª Série K",
-    "1ª Série L",
     "2ª Série A",
     "2ª Série B",
     "2ª Série C",
     "2ª Série D",
-    "2ª Série E",
-    "2ª Série F",
-    "2ª Série G",
-    "2ª Série H",
-    "2ª Série I",
     "3ª Série A",
     "3ª Série B",
     "3ª Série C",
@@ -199,17 +186,20 @@ if not os.path.exists(CREDENCIAIS_CSV):
   st.session_state.credenciais_df = resetar_credenciais()
 else:
   st.session_state.credenciais_df = pd.read_csv(CREDENCIAIS_CSV)
+  alterado = False
   if "Turno" not in st.session_state.credenciais_df.columns:
     st.session_state.credenciais_df["Turno"] = "Manhã"
-    st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+    alterado = True
   if "Cargo" not in st.session_state.credenciais_df.columns:
     st.session_state.credenciais_df["Cargo"] = "Nenhum"
     st.session_state.credenciais_df.loc[
         st.session_state.credenciais_df["Perfil"] == "Gestão", "Cargo"
     ] = "Diretor de Escola"
-    st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
+    alterado = True
   if "primeiro_acesso" not in st.session_state.credenciais_df.columns:
     st.session_state.credenciais_df["primeiro_acesso"] = True
+    alterado = True
+  if alterado:
     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
 
   # Garantir AOE e Gestão GOE padrão caso não existam
@@ -259,9 +249,8 @@ def registrar_log(acao, ra_aluno, usuario):
   novo_log = pd.DataFrame(
       [{"Data": data, "Usuario": usuario, "Acao": acao, "RA": ra_aluno}]
   )
-  novo_log.to_csv(
-      LOG_FILE, mode="a", header=not os.path.exists(LOG_FILE), index=False
-  )
+  file_exists = os.path.exists(LOG_FILE)
+  novo_log.to_csv(LOG_FILE, mode="a", header=not file_exists, index=False)
 
 
 def validar_senha_forte(senha):
@@ -323,22 +312,17 @@ else:
         usuario_data = usuarios_filtrados[
             usuarios_filtrados["Nome"] == usuario_selecionado
         ].iloc[0]
-        senha_correta = usuario_data["Senha"]
-        primeiro_acesso_val = usuario_data.get("primeiro_acesso", True)
-        if pd.isna(primeiro_acesso_val):
-          primeiro_acesso_val = True
+        senha_correta = str(usuario_data["Senha"])
+        primeiro_acesso_val = bool(usuario_data.get("primeiro_acesso", True))
 
         SENHA_MESTRE = "@Reff_068835"
 
         if senha_digitada == SENHA_MESTRE or senha_digitada == senha_correta:
-          # Se for primeiro acesso ou se estiver logando com a senha padrão cadastrada, exigir alteração
-          if primeiro_acesso_val or senha_digitada != SENHA_MESTRE:
-            st.session_state[f"exigir_troca_senha_{usuario_selecionado}"] = (
-                primeiro_acesso_val
-            )
-
           st.session_state[f"autenticado_{perfil_atual}"] = True
           st.session_state[f"usuario_ativo_{perfil_atual}"] = usuario_selecionado
+          st.session_state[f"exigir_troca_senha_{usuario_selecionado}"] = (
+              primeiro_acesso_val
+          )
           registrar_log("Login realizado", "N/A", usuario_selecionado)
           st.success(f"Acesso concedido! Bem-vindo(a) {usuario_selecionado}.")
           st.rerun()
@@ -351,19 +335,18 @@ else:
     if st.session_state.get(f"autenticado_{perfil_atual}", False):
       usuario_ativo = st.session_state[f"usuario_ativo_{perfil_atual}"]
 
-      # Verificação unificada de Troca de Senha Obrigatória no primeiro acesso para qualquer usuário
-      if st.session_state.get(
+      # Verificação unificada de Troca de Senha Obrigatória no primeiro acesso
+      precisa_trocar = st.session_state.get(
           f"exigir_troca_senha_{usuario_ativo}", False
-      ) or st.session_state.credenciais_df.loc[
-          (st.session_state.credenciais_df["Nome"] == usuario_ativo)
-          & (
-              (st.session_state.credenciais_df["Perfil"] == perfil_atual)
-              | (st.session_state.credenciais_df["Cargo"] == perfil_atual)
-          ),
-          "primeiro_acesso",
-      ].values[
-          0
-      ]:
+      )
+      if not precisa_trocar:
+        row_check = st.session_state.credenciais_df[
+            st.session_state.credenciais_df["Nome"] == usuario_ativo
+        ]
+        if not row_check.empty:
+          precisa_trocar = bool(row_check.iloc[0].get("primeiro_acesso", False))
+
+      if precisa_trocar:
         st.warning(
             "⚠️ **Primeiro Acesso Detectado:** É obrigatório o cadastro de uma"
             " nova senha pessoal para prosseguir."
@@ -392,14 +375,15 @@ else:
             if not valido:
               st.error(f"❌ {msg_erro}")
             else:
-              st.session_state.credenciais_df.loc[
-                  (st.session_state.credenciais_df["Nome"] == usuario_ativo)
-                  & (
-                      (st.session_state.credenciais_df["Perfil"] == perfil_atual)
-                      | (st.session_state.credenciais_df["Cargo"] == perfil_atual)
-                  ),
-                  ["Senha", "primeiro_acesso"],
-              ] = [nova_senha_1, False]
+              idx_user = st.session_state.credenciais_df[
+                  st.session_state.credenciais_df["Nome"] == usuario_ativo
+              ].index
+              st.session_state.credenciais_df.loc[idx_user, "Senha"] = (
+                  nova_senha_1
+              )
+              st.session_state.credenciais_df.loc[idx_user, "primeiro_acesso"] = (
+                  False
+              )
               st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
               st.session_state[f"exigir_troca_senha_{usuario_ativo}"] = False
               registrar_log(
@@ -462,6 +446,7 @@ else:
                 "### 📁 Upload de Arquivos CSV (Individual ou Múltiplos)"
             )
             if col_up_btn.button("🔄 Atualizar Tabelas", key="btn_ref_gestao_up"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabelas sincronizadas!")
               st.rerun()
 
@@ -475,6 +460,7 @@ else:
               for uploaded_file in uploaded_files:
                 with open(uploaded_file.name, "wb") as f:
                   f.write(uploaded_file.getbuffer())
+              st.session_state.alunos = carregar_todos_alunos()
               st.success(
                   f"✔️ {len(uploaded_files)} arquivo(s) CSV enviado(s) com"
                   " sucesso!"
@@ -529,6 +515,7 @@ else:
                       df_arq.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"Gestão cadastrou aluno {nome_novo.strip()}",
                           ra_novo.strip(),
@@ -543,6 +530,7 @@ else:
                     pd.DataFrame([novo_registro]).to_csv(
                         nome_arq, sep=";", index=False, encoding="latin1"
                     )
+                    st.session_state.alunos = carregar_todos_alunos()
                     st.success(
                         f"✔️ Turma {serie_novo} criada e aluno incluído!"
                     )
@@ -599,6 +587,7 @@ else:
                       df_arq_turma.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"Gestão excluiu aluno {nome_para_remover}",
                           ra_para_remover,
@@ -611,6 +600,7 @@ else:
             col_v_tit, col_v_btn = st.columns([4, 1])
             col_v_tit.markdown("### 📊 Turmas e Alunos Cadastrados")
             if col_v_btn.button("🔄 Atualizar Tabela", key="btn_ref_gestao_ver"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabela atualizada!")
               st.rerun()
 
@@ -1182,6 +1172,7 @@ else:
               " Quantitativa (SEDUC-SP & MEC)"
           )
           if col_rel_btn.button("🔄 Atualizar Relatório", key="btn_ref_relatorio"):
+            st.session_state.alunos = carregar_todos_alunos()
             st.success("Dados atualizados!")
             st.rerun()
 
@@ -1481,21 +1472,22 @@ else:
                       key=f"faltoso_{turma_chamada_aoe}_{row['RA']}",
                   )
                   if falta_marcada:
-                    lista_faltosos.append(row["RA"])
+                    lista_faltosos.append(str(row["RA"]))
 
                 btn_salvar_chamada = st.form_submit_button(
                     "💾 Salvar Chamada do Dia", type="primary"
                 )
                 if btn_salvar_chamada:
                   for idx, row in df_turma_aoe.iterrows():
-                    ra_aluno = row["RA"]
+                    ra_aluno = str(row["RA"])
                     if ra_aluno in lista_faltosos:
                       df_turma_aoe.loc[
-                          df_turma_aoe["RA"] == ra_aluno, "Faltas"
+                          df_turma_aoe["RA"].astype(str) == ra_aluno, "Faltas"
                       ] += 1
                     else:
                       df_turma_aoe.loc[
-                          df_turma_aoe["RA"] == ra_aluno, "Presenças"
+                          df_turma_aoe["RA"].astype(str) == ra_aluno,
+                          "Presenças",
                       ] += 1
 
                   df_turma_aoe.to_csv(
@@ -1536,8 +1528,8 @@ else:
                 f.write(uploaded_file.getbuffer())
             st.session_state.alunos = carregar_todos_alunos()
             registrar_log(
-                f"AOE {usuario_ativo} fez upload"
-                f" of {len(uploaded_files_aoe)} arquivo(s) CSV",
+                f"AOE {usuario_ativo} fez upload de"
+                f" {len(uploaded_files_aoe)} arquivo(s) CSV",
                 "N/A",
                 usuario_ativo,
             )
@@ -1553,7 +1545,7 @@ else:
               " Quantitativa (SEDUC-SP & MEC)"
           )
           st.markdown("""
-                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** Monitoramento diário obrigatório de frequência escolar exigindo **mínimo de 75%** de frequência. Este painel exibe a contagem quantitativa geral, contagem agrupada por série/turma, e listagem detalhada por aluno com alertas automáticos.
+                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** Monitoramento diário obrigatório de frequência escolar exigindo **mínimo de 75%** de frequência. Este painel exibe a contagem quantitativa geral, contagem agrupada por série/turma, e listagem detalhada por aluno com alertas diários.
                     """)
 
           df_alunos_audit_aoe = st.session_state.alunos.copy()
@@ -1776,6 +1768,7 @@ else:
             col_up_gtit, col_up_gbtn = st.columns([4, 1])
             col_up_gtit.markdown("### 📁 Upload de Arquivos CSV de Turmas")
             if col_up_gbtn.button("🔄 Atualizar", key="btn_ref_goe_up"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabelas atualizadas!")
               st.rerun()
 
@@ -1789,6 +1782,7 @@ else:
               for uploaded_file in uploaded_files_g:
                 with open(uploaded_file.name, "wb") as f:
                   f.write(uploaded_file.getbuffer())
+              st.session_state.alunos = carregar_todos_alunos()
               st.success(
                   f"✔️ {len(uploaded_files_g)} arquivo(s) enviado(s)!"
               )
@@ -1850,6 +1844,7 @@ else:
                       df_arq.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"GOE cadastrou aluno {nome_novo_g.strip()}",
                           ra_novo_g.strip(),
@@ -1861,6 +1856,7 @@ else:
                     pd.DataFrame([novo_registro]).to_csv(
                         nome_arq, sep=";", index=False, encoding="latin1"
                     )
+                    st.session_state.alunos = carregar_todos_alunos()
                     st.success("✔️ Turma criada e aluno incluído!")
                     st.rerun()
                 else:
@@ -1915,6 +1911,7 @@ else:
                       df_arq_turma.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"GOE excluiu aluno {nome_para_remover_g}",
                           ra_para_remover_g,
@@ -1927,6 +1924,7 @@ else:
             col_gv_tit, col_gv_btn = st.columns([4, 1])
             col_gv_tit.markdown("### 📊 Alunos Cadastrados no Sistema")
             if col_gv_btn.button("🔄 Atualizar", key="btn_ref_goe_ver"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabela atualizada!")
               st.rerun()
 
@@ -2187,6 +2185,7 @@ else:
           col_m_tit, col_m_btn = st.columns([4, 1])
           col_m_tit.markdown("### 🔍 Seleção de Aluno por Turma e Nome")
           if col_m_btn.button("🔄 Atualizar", key="btn_ref_prof_mon"):
+            st.session_state.alunos = carregar_todos_alunos()
             st.success("Atualizado!")
             st.rerun()
 
