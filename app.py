@@ -44,6 +44,8 @@ DISCIPLINAS_SEDUC_COMPLETA = [
     "Eletivas",
     "Tecnologia e Inovação",
     "Orientação de Convivência",
+    "Orientação de Português",
+    "Orientação de Matemática", 
 ]
 
 CARGOS_GESTAO_SEDUC = [
@@ -55,7 +57,7 @@ CARGOS_GESTAO_SEDUC = [
 ]
 
 SERIES_TURMAS = [
-    "1ª Série A",
+     "1ª Série A",
     "1ª Série B",
     "1ª Série C",
     "1ª Série D",
@@ -1499,15 +1501,16 @@ else:
                   df_turma_aoe.to_csv(
                       arquivo_turma_atual, sep=";", index=False, encoding="latin1"
                   )
-                  # ATUALIZAÇÃO INTEGRADA: Envia os dados para o Relatório Avançado & Risco e Registra na Auditoria
                   st.session_state.alunos = carregar_todos_alunos()
                   registrar_log(
-                      f"AOE {usuario_ativo} realizou chamada da turma {turma_chamada_aoe} (Data: {data_chamada_aoe.strftime('%d/%m/%Y')}) - Dados integrados ao Relatório Avançado & Risco e Auditoria",
+                      f"AOE {usuario_ativo} realizou chamada da turma"
+                      f" {turma_chamada_aoe}",
                       "N/A",
                       usuario_ativo,
                   )
                   st.success(
-                      f"✔️ Chamada da turma {turma_chamada_aoe} salva com sucesso! Os dados foram enviados para o **📈 Relatório Avançado & Risco (SEDUC-SP & MEC)** e registrados em **Risco e Auditoria**."
+                      f"✔️ Chamada da turma {turma_chamada_aoe} salva e"
+                      " computada com sucesso!"
                   )
                   st.rerun()
 
@@ -1534,7 +1537,7 @@ else:
             st.session_state.alunos = carregar_todos_alunos()
             registrar_log(
                 f"AOE {usuario_ativo} fez upload"
-                f" de {len(uploaded_files_aoe)} arquivo(s) CSV",
+                f" of {len(uploaded_files_aoe)} arquivo(s) CSV",
                 "N/A",
                 usuario_ativo,
             )
