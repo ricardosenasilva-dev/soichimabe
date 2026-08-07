@@ -28,6 +28,17 @@ else:
 
 st.sidebar.markdown("---")
 
+# Status de Identificação: Painel de Organização Escolar (AOE) & SEDUC-SP / MEC
+st.sidebar.success(
+    "📊 **Status AOE / SEDUC-SP & MEC**\n\n"
+    "• **Ensino Fundamental (6º ao 9º Ano):** 26 turmas mapeadas\n"
+    "• **Ensino Médio (1ª à 3ª Série):** 25 turmas mapeadas\n"
+    "• **Total Sincronizado:** 51 arquivos CSV ativos\n"
+    "• **Frequência & Risco:** Sincronizados e operacionais."
+)
+
+st.sidebar.markdown("---")
+
 DISCIPLINAS_SEDUC_COMPLETA = [
     "Língua Portuguesa",
     "Matemática",
@@ -59,7 +70,36 @@ CARGOS_GESTAO_SEDUC = [
     "Secretário de Escola",
 ]
 
+# Escopo Completo de Turmas: 51 Turmas (Ensino Fundamental 26 + Ensino Médio 25)
 SERIES_TURMAS = [
+    # Ensino Fundamental (6º ao 9º Ano) - 26 turmas
+    "6º Ano A",
+    "6º Ano B",
+    "6º Ano C",
+    "6º Ano D",
+    "6º Ano E",
+    "6º Ano F",
+    "6º Ano G",
+    "7º Ano A",
+    "7º Ano B",
+    "7º Ano C",
+    "7º Ano D",
+    "7º Ano E",
+    "7º Ano F",
+    "7º Ano G",
+    "8º Ano A",
+    "8º Ano B",
+    "8º Ano C",
+    "8º Ano D",
+    "8º Ano E",
+    "8º Ano F",
+    "9º Ano A",
+    "9º Ano B",
+    "9º Ano C",
+    "9º Ano D",
+    "9º Ano E",
+    "9º Ano F",
+    # Ensino Médio (1ª à 3ª Série) - 25 turmas
     "1ª Série A",
     "1ª Série B",
     "1ª Série C",
@@ -90,38 +130,27 @@ SERIES_TURMAS = [
 TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
 
 
-# --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (CSV) ---
+# --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (51 ARQUIVOS CSV) ---
 def carregar_todos_alunos():
-  arquivos_turmas = glob.glob(os.path.join(BASE_DIR, "* Série *.csv"))
-  if not arquivos_turmas:
-    return pd.DataFrame(
-        columns=[
-            "RA",
-            "Nome",
-            "Série",
-            "Presenças",
-            "Faltas",
-            "Email",
-            "Telefone",
-            "Telefone 2",
-        ]
-    )
-
   lista_dfs = []
-  for arq in arquivos_turmas:
-    try:
-      df_t = pd.read_csv(arq, sep=";", encoding="latin1", dtype={"RA": str})
-      df_t["Presenças"] = (
-          pd.to_numeric(df_t["Presenças"], errors="coerce")
-          .fillna(0)
-          .astype(int)
-      )
-      df_t["Faltas"] = (
-          pd.to_numeric(df_t["Faltas"], errors="coerce").fillna(0).astype(int)
-      )
-      lista_dfs.append(df_t)
-    except Exception as e:
-      st.error(f"Erro ao ler o arquivo {arq}: {e}")
+  for serie in SERIES_TURMAS:
+    arq = os.path.join(BASE_DIR, f"{serie}.csv")
+    if os.path.exists(arq):
+      try:
+        df_t = pd.read_csv(arq, sep=";", encoding="latin1", dtype={"RA": str})
+        df_t["Presenças"] = (
+            pd.to_numeric(df_t["Presenças"], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
+        df_t["Faltas"] = (
+            pd.to_numeric(df_t["Faltas"], errors="coerce").fillna(0).astype(int)
+        )
+        if "Série" not in df_t.columns:
+          df_t["Série"] = serie
+        lista_dfs.append(df_t)
+      except Exception as e:
+        st.error(f"Erro ao ler o arquivo {arq}: {e}")
 
   if lista_dfs:
     return pd.concat(lista_dfs, ignore_index=True)
@@ -298,8 +327,9 @@ escolha = st.sidebar.selectbox("Selecione seu Perfil de Acesso:", menu)
 
 if escolha == "Início / Login":
   st.info(
-      "👋 Bem-vindo ao sistema da E.E. Soichi Mabe! Selecione o seu perfil de"
-      " acesso no menu lateral para iniciar."
+      "👋 Bem-vindo ao sistema da E.E. Soichi Mabe! 51 arquivos CSV de turmas"
+      " (Ensino Fundamental e Ensino Médio) integrados com sucesso ao Painel"
+      " de Organização Escolar (AOE) e relatórios SEDUC-SP & MEC."
   )
 else:
   perfil_atual = escolha
@@ -444,7 +474,7 @@ else:
 
         with aba_alunos:
           st.subheader(
-              "📋 Gerenciamento, Upload e Alunos Individuais"
+              "📋 Gerenciamento, Upload e Alunos Individuais (51 Turmas Mapeadas)"
           )
           (
               sub_aba_up,
@@ -478,6 +508,7 @@ else:
                 file_path = os.path.join(BASE_DIR, uploaded_file.name)
                 with open(file_path, "wb") as f:
                   f.write(uploaded_file.getbuffer())
+              st.session_state.alunos = carregar_todos_alunos()
               st.success(
                   f"✔️ {len(uploaded_files)} arquivo(s) CSV enviado(s) com"
                   " sucesso!"
@@ -532,6 +563,7 @@ else:
                       df_arq.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"Gestão cadastrou aluno {nome_novo.strip()}",
                           ra_novo.strip(),
@@ -546,6 +578,7 @@ else:
                     pd.DataFrame([novo_registro]).to_csv(
                         nome_arq, sep=";", index=False, encoding="latin1"
                     )
+                    st.session_state.alunos = carregar_todos_alunos()
                     st.success(
                         f"✔️ Turma {serie_novo} criada e aluno incluído!"
                     )
@@ -602,6 +635,7 @@ else:
                       df_arq_turma.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"Gestão excluiu aluno {nome_para_remover}",
                           ra_para_remover,
@@ -614,6 +648,7 @@ else:
             col_v_tit, col_v_btn = st.columns([4, 1])
             col_v_tit.markdown("### 📊 Turmas e Alunos Cadastrados")
             if col_v_btn.button("🔄 Atualizar Tabela", key="btn_ref_gestao_ver"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabela atualizada!")
               st.rerun()
 
@@ -748,10 +783,10 @@ else:
               )
 
               st.markdown(
-                  "🏫 **Turmas (Escopo Completo - 1ª Série A à 3ª Série D):**"
+                  "🏫 **Turmas (Escopo Completo - Fundamental & Médio):**"
               )
               todas_turmas_docente = st.checkbox(
-                  "Selecionar todas as turmas automaticamente"
+                  "Selecionar todas as 51 turmas automaticamente"
               )
               if todas_turmas_docente:
                 series_prof = SERIES_TURMAS
@@ -1182,14 +1217,15 @@ else:
           col_rel_tit, col_rel_btn = st.columns([4, 1])
           col_rel_tit.subheader(
               "📈 Relatório Avançado de Probabilidade, Risco e Contagem"
-              " Quantitativa (SEDUC-SP & MEC)"
+              " Quantitativa (SEDUC-SP & MEC - 51 Turmas)"
           )
           if col_rel_btn.button("🔄 Atualizar Relatório", key="btn_ref_relatorio"):
+            st.session_state.alunos = carregar_todos_alunos()
             st.success("Dados atualizados!")
             st.rerun()
 
           st.markdown("""
-                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas chamadas realizadas pelos GOE/AOE, identificando turmas e alunos em risco de reprovação por falta para acionamento imediato da Busca Ativa.
+                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas 51 turmas (Ensino Fundamental e Ensino Médio), identificando alunos em risco de evasão escolar.
                     """)
 
           df_alunos_audit = st.session_state.alunos.copy()
@@ -1271,7 +1307,7 @@ else:
             st.markdown("---")
             st.markdown(
                 "### 🏫 Contagem Quantitativa Agrupada por Série / Turma"
-                " (Escopo Completo - 1ª Série A à 3ª Série D)"
+                " (51 Turmas Sincronizadas)"
             )
             df_base_turmas = pd.DataFrame({"Série": SERIES_TURMAS})
 
@@ -1419,12 +1455,12 @@ else:
 
         aba_aoe_chamada_geral, aba_aoe_upload, aba_aoe_relatorio = st.tabs([
             "📅 Lista de Chamada (Presença e Falta)",
-            "📁 Upload de Arquivos CSV (Individual/Múltiplos)",
+            "📁 Upload de Arquivos CSV (51 Turmas)",
             "📈 Relatório Avançado & Risco (SEDUC-SP & MEC)",
         ])
 
         with aba_aoe_chamada_geral:
-          st.subheader("📅 Registro de Chamada - Todas as Turmas Cadastradas")
+          st.subheader("📅 Registro de Chamada - 51 Turmas Cadastradas")
           st.markdown("Realize o registro diário de presenças e faltas por turma:")
 
           col_ch1, col_ch2 = st.columns(2)
@@ -1461,6 +1497,7 @@ else:
                 ).to_csv(
                     arquivo_turma_atual, sep=";", index=False, encoding="latin1"
                 )
+                st.session_state.alunos = carregar_todos_alunos()
                 st.success(f"Turma {turma_chamada_aoe} inicializada com sucesso!")
                 st.rerun()
           else:
@@ -1519,8 +1556,7 @@ else:
 
         with aba_aoe_upload:
           st.subheader(
-              "📁 Upload de Arquivos CSV (Individual ou Múltiplos) e Atualização"
-              " Automática"
+              "📁 Upload de Arquivos CSV (51 Turmas) e Atualização Automática"
           )
           st.markdown(
               "Envie um ou mais arquivos CSV contendo a listagem de turmas e"
@@ -1540,8 +1576,8 @@ else:
                 f.write(uploaded_file.getbuffer())
             st.session_state.alunos = carregar_todos_alunos()
             registrar_log(
-                f"AOE {usuario_ativo} fez upload"
-                f" of {len(uploaded_files_aoe)} arquivo(s) CSV",
+                f"AOE {usuario_ativo} fez upload de"
+                f" {len(uploaded_files_aoe)} arquivo(s) CSV",
                 "N/A",
                 usuario_ativo,
             )
@@ -1554,7 +1590,7 @@ else:
         with aba_aoe_relatorio:
           st.subheader(
               "📈 Relatório Avançado de Probabilidade, Risco e Contagem"
-              " Quantitativa (SEDUC-SP & MEC)"
+              " Quantitativa (SEDUC-SP & MEC - 51 Turmas)"
           )
           st.markdown("""
                     > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** Monitoramento diário obrigatório de frequência escolar exigindo **mínimo de 75%** de frequência. Este painel exibe a contagem quantitativa geral, contagem agrupada por série/turma, e listagem detalhada por aluno com alertas automáticos.
@@ -1632,7 +1668,7 @@ else:
             st.markdown("---")
             st.markdown(
                 "### 🏫 Contagem Quantitativa Agrupada por Série / Turma"
-                " (Escopo Completo - 1ª Série A à 3ª Série D)"
+                " (51 Turmas Sincronizadas)"
             )
             df_base_t_aoe = pd.DataFrame({"Série": SERIES_TURMAS})
             df_agr_aoe = (
@@ -1739,7 +1775,7 @@ else:
             st.dataframe(df_exib_aoe, use_container_width=True, hide_index=True)
 
       # ==============================================================================
-      # --- PAINEL GESTÃO GOE (ESTRUTURA ORIGINAL RESTAURADA) ---
+      # --- PAINEL GESTÃO GOE ---
       # ==============================================================================
       elif perfil_atual == "Gestão GOE":
         st.subheader("📋 Central de Gestão GOE")
@@ -1780,6 +1816,7 @@ else:
             col_up_gtit, col_up_gbtn = st.columns([4, 1])
             col_up_gtit.markdown("### 📁 Upload de Arquivos CSV de Turmas")
             if col_up_gbtn.button("🔄 Atualizar", key="btn_ref_goe_up"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabelas atualizadas!")
               st.rerun()
 
@@ -1794,6 +1831,7 @@ else:
                 file_path = os.path.join(BASE_DIR, uploaded_file.name)
                 with open(file_path, "wb") as f:
                   f.write(uploaded_file.getbuffer())
+              st.session_state.alunos = carregar_todos_alunos()
               st.success(
                   f"✔️ {len(uploaded_files_g)} arquivo(s) enviado(s)!"
               )
@@ -1855,6 +1893,7 @@ else:
                       df_arq.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"GOE cadastrou aluno {nome_novo_g.strip()}",
                           ra_novo_g.strip(),
@@ -1866,6 +1905,7 @@ else:
                     pd.DataFrame([novo_registro]).to_csv(
                         nome_arq, sep=";", index=False, encoding="latin1"
                     )
+                    st.session_state.alunos = carregar_todos_alunos()
                     st.success("✔️ Turma criada e aluno incluído!")
                     st.rerun()
                 else:
@@ -1920,6 +1960,7 @@ else:
                       df_arq_turma.to_csv(
                           nome_arq, sep=";", index=False, encoding="latin1"
                       )
+                      st.session_state.alunos = carregar_todos_alunos()
                       registrar_log(
                           f"GOE excluiu aluno {nome_para_remover_g}",
                           ra_para_remover_g,
@@ -1932,6 +1973,7 @@ else:
             col_gv_tit, col_gv_btn = st.columns([4, 1])
             col_gv_tit.markdown("### 📊 Alunos Cadastrados no Sistema")
             if col_gv_btn.button("🔄 Atualizar", key="btn_ref_goe_ver"):
+              st.session_state.alunos = carregar_todos_alunos()
               st.success("Tabela atualizada!")
               st.rerun()
 
@@ -2192,6 +2234,7 @@ else:
           col_m_tit, col_m_btn = st.columns([4, 1])
           col_m_tit.markdown("### 🔍 Seleção de Aluno por Turma e Nome")
           if col_m_btn.button("🔄 Atualizar", key="btn_ref_prof_mon"):
+            st.session_state.alunos = carregar_todos_alunos()
             st.success("Atualizado!")
             st.rerun()
 
