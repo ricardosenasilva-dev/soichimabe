@@ -1784,7 +1784,7 @@ else:
           df_oc_goe = pd.read_csv(OCORRENCIAS_CSV, dtype={"RA": str})
           if not df_oc_goe.empty:
             st.error(
-                f"🚨 ALERTA: Existem {len(df_oc_goe)} ocorrência(s) recente(s)"
+                f"🚨 ALERTA: Existen {len(df_oc_goe)} ocorrência(s) recente(s)"
                 " registrada(s) na escola!"
             )
 
