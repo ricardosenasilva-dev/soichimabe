@@ -1,19 +1,45 @@
 from datetime import datetime, date
 import glob
 import os
-import pandas as pd
+import glob
 import streamlit as st
+import pandas as pd
 
-# ==============================================================================
-# 1. CONFIGURAÇÕES INICIAIS, LAYOUT (UI/UX) E LOGOTIPO
-# ==============================================================================
-st.set_page_config(page_title="Gestão Escolar SP - E.E. Soichi Mabe", layout="wide")
+# Configuração inicial da página do Streamlit
+st.set_page_config(page_title="App Soichi MABE", layout="wide")
 
-CREDENCIAIS_CSV = "dados_credenciais.csv"
-LOG_FILE = "log_auditoria.csv"
-OCORRENCIAS_CSV = "ocorrencias.csv"
-COMUNICADOS_CSV = "comunicados_goe.csv"
-LOGO_PATH = "Logotipo Soichi Mabe.jpeg"
+# Caminho absoluto para a pasta de turmas no OneDrive
+PASTA_TURMAS = r"C:\Users\Usuário\OneDrive\Desktop\Ricardo\AppSoichiMABE"
+os.makedirs(PASTA_TURMAS, exist_ok=True)
+
+# Função para carregar as turmas dinamicamente com base nos arquivos .csv salvos na pasta
+def obter_series_turmas(pasta):
+    padrao = os.path.join(pasta, "*.csv")
+    arquivos = glob.glob(padrao)
+    turmas = [os.path.basename(f)[:-4] for f in arquivos]
+    return sorted(turmas)
+
+# Substitua a lista antiga de turmas por esta variável:
+SERIES_TURMAS = obter_series_turmas(PASTA_TURMAS)
+
+# Interface do Aplicativo
+st.title("Gerenciador de Turmas - Soichi MABE")
+
+st.sidebar.header("Navegação")
+if not SERIES_TURMAS:
+    st.warning(f"Nenhum arquivo .csv encontrado na pasta: {PASTA_TURMAS}")
+    st.info("Adicione arquivos CSV de turmas no diretório configurado para preencher a lista automaticamente.")
+else:
+    turma_selecionada = st.sidebar.selectbox("Selecione a Turma:", SERIES_TURMAS)
+    st.subheader(f"Turma Selecionada: {turma_selecionada}")
+
+    # Carregar dados da turma selecionada caso o arquivo exista
+    caminho_csv = os.path.join(PASTA_TURMAS, f"{turma_selecionada}.csv")
+    if os.path.exists(caminho_csv):
+        df_alunos = pd.read_csv(caminho_csv)
+        st.dataframe(df_alunos, use_container_width=True)
+    else:
+        st.error(f"O arquivo correspondente à turma '{turma_selecionada}' não foi encontrado no caminho especificado.")
 
 # Exibição do Logotipo Oficial na Barra Lateral (se disponível)
 if os.path.exists(LOGO_PATH):
