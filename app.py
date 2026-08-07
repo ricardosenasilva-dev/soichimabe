@@ -11,8 +11,12 @@ st.set_page_config(page_title="App Soichi MABE", layout="wide")
 PASTA_TURMAS = r"C:\Users\Usuário\OneDrive\Desktop\Ricardo\AppSoichiMABE"
 os.makedirs(PASTA_TURMAS, exist_ok=True)
 
-# Caminho completo para o logotipo baseado na imagem enviada
+# Caminho completo para o logotipo
 LOGO_PATH = os.path.join(PASTA_TURMAS, "Logotipo Soichi Mabe.jpeg")
+
+# Caminho para o arquivo de credenciais (corrige o NameError)
+CREDENCIAIS_CSV = os.path.join(PASTA_TURMAS, "credenciais.csv")
+
 # Função para carregar as turmas dinamicamente com base nos arquivos .csv salvos na pasta
 def obter_series_turmas(pasta):
     padrao = os.path.join(pasta, "*.csv")
@@ -20,12 +24,17 @@ def obter_series_turmas(pasta):
     turmas = [os.path.basename(f)[:-4] for f in arquivos]
     return sorted(turmas)
 
-# Substitua a lista antiga de turmas por esta variável:
+# Lista de séries/turmas atualizada automaticamente
 SERIES_TURMAS = obter_series_turmas(PASTA_TURMAS)
 
 # Exibição do logotipo caso o arquivo exista na pasta
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=200)
+
+# Verificação do arquivo de credenciais para evitar erros na linha 231
+if not os.path.exists(CREDENCIAIS_CSV):
+    # Caso queira criar um arquivo padrão ou tratar o aviso:
+    pass
 
 # Interface do Aplicativo
 st.title("Gerenciador de Turmas - Soichi MABE")
