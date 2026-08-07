@@ -1,71 +1,29 @@
 from datetime import datetime, date
-import os
 import glob
-import streamlit as st
+import os
 import pandas as pd
+import streamlit as st
 
-# Configuração inicial da página do Streamlit
-st.set_page_config(page_title="App Soichi MABE", layout="wide")
+# ==============================================================================
+# 1. CONFIGURAÇÕES INICIAIS, LAYOUT (UI/UX) E LOGOTIPO
+# ==============================================================================
+st.set_page_config(page_title="Gestão Escolar SP - E.E. Soichi Mabe", layout="wide")
 
-# Caminho absoluto para a pasta de turmas no OneDrive
-PASTA_TURMAS = r"C:\Users\Usuário\OneDrive\Desktop\Ricardo\AppSoichiMABE"
-os.makedirs(PASTA_TURMAS, exist_ok=True)
+# Diretório base do script para garantir caminhos absolutos e evitar erros no Streamlit Cloud
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Caminhos para os arquivos auxiliares e logotipo
-LOGO_PATH = os.path.join(PASTA_TURMAS, "Logotipo Soichi Mabe.jpeg")
-CREDENCIAIS_CSV = os.path.join(PASTA_TURMAS, "credenciais.csv")
-OCORRENCIAS_CSV = os.path.join(PASTA_TURMAS, "ocorrencias.csv")
-
-# Função para carregar as turmas dinamicamente com base nos arquivos .csv salvos na pasta
-def obter_series_turmas(pasta):
-    padrao = os.path.join(pasta, "*.csv")
-    arquivos = glob.glob(padrao)
-    turmas = []
-    # Filtra os arquivos para garantir que arquivos de sistema não apareçam como turmas
-    EXCLUIR = ["credenciais", "ocorrencias"]
-    for f in arquivos:
-        nome_base = os.path.basename(f)[:-4]
-        if nome_base.lower() not in EXCLUIR:
-            turmas.append(nome_base)
-    return sorted(turmas)
-
-# Lista de séries/turmas atualizada automaticamente
-SERIES_TURMAS = obter_series_turmas(PASTA_TURMAS)
-
-# Exibição do logotipo caso o arquivo exista na pasta
-if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=200)
-
-# Verificação do arquivo de credenciais para evitar erros na linha 231
-if not os.path.exists(CREDENCIAIS_CSV):
-    # Caso queira criar um arquivo padrão ou tratar o aviso:
-    pass
-
-# Interface do Aplicativo
-st.title("Gerenciador de Turmas - Soichi MABE")
-
-st.sidebar.header("Navegação")
-if not SERIES_TURMAS:
-    st.warning(f"Nenhum arquivo .csv encontrado na pasta: {PASTA_TURMAS}")
-    st.info("Adicione arquivos CSV de turmas no diretório configurado para preencher a lista automaticamente.")
-else:
-    turma_selecionada = st.sidebar.selectbox("Selecione a Turma:", SERIES_TURMAS)
-    st.subheader(f"Turma Selecionada: {turma_selecionada}")
-
-    # Carregar dados da turma selecionada caso o arquivo exista
-    caminho_csv = os.path.join(PASTA_TURMAS, f"{turma_selecionada}.csv")
-    if os.path.exists(caminho_csv):
-        df_alunos = pd.read_csv(caminho_csv)
-        st.dataframe(df_alunos, use_container_width=True)
-    else:
-        st.error(f"O arquivo correspondente à turma '{turma_selecionada}' não foi encontrado no caminho especificado.")
+CREDENCIAIS_CSV = os.path.join(BASE_DIR, "dados_credenciais.csv")
+LOG_FILE = os.path.join(BASE_DIR, "log_auditoria.csv")
+OCORRENCIAS_CSV = os.path.join(BASE_DIR, "ocorrencias.csv")
+COMUNICADOS_CSV = os.path.join(BASE_DIR, "comunicados_goe.csv")
+LOGO_PATH = os.path.join(BASE_DIR, "Logotipo Soichi Mabe.jpeg")
 
 # Exibição do Logotipo Oficial na Barra Lateral (se disponível)
 if os.path.exists(LOGO_PATH):
   st.sidebar.image(LOGO_PATH, use_container_width=True)
 else:
   st.sidebar.warning(
-      f"⚠️ Logotipo '{LOGO_PATH}' não encontrado na pasta do projeto."
+      "⚠️ Logotipo 'Logotipo Soichi Mabe.jpeg' não encontrado na pasta do projeto."
   )
 
 st.sidebar.markdown("---")
@@ -102,7 +60,7 @@ CARGOS_GESTAO_SEDUC = [
 ]
 
 SERIES_TURMAS = [
-     "1ª Série A",
+    "1ª Série A",
     "1ª Série B",
     "1ª Série C",
     "1ª Série D",
@@ -134,7 +92,7 @@ TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
 
 # --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (CSV) ---
 def carregar_todos_alunos():
-  arquivos_turmas = glob.glob("* Série *.csv")
+  arquivos_turmas = glob.glob(os.path.join(BASE_DIR, "* Série *.csv"))
   if not arquivos_turmas:
     return pd.DataFrame(
         columns=[
@@ -259,7 +217,6 @@ else:
     st.session_state.credenciais_df["primeiro_acesso"] = True
     st.session_state.credenciais_df.to_csv(CREDENCIAIS_CSV, index=False)
 
-  # Garantir AOE e Gestão GOE padrão caso não existam
   if not (
       (st.session_state.credenciais_df["Perfil"] == "AOE").any()
       or (st.session_state.credenciais_df["Cargo"] == "AOE").any()
@@ -518,7 +475,8 @@ else:
             )
             if uploaded_files:
               for uploaded_file in uploaded_files:
-                with open(uploaded_file.name, "wb") as f:
+                file_path = os.path.join(BASE_DIR, uploaded_file.name)
+                with open(file_path, "wb") as f:
                   f.write(uploaded_file.getbuffer())
               st.success(
                   f"✔️ {len(uploaded_files)} arquivo(s) CSV enviado(s) com"
@@ -547,7 +505,7 @@ else:
 
               if st.form_submit_button("💾 Salvar Aluno", type="primary"):
                 if ra_novo.strip() and nome_novo.strip():
-                  nome_arq = f"{serie_novo}.csv"
+                  nome_arq = os.path.join(BASE_DIR, f"{serie_novo}.csv")
                   novo_registro = {
                       "RA": ra_novo.strip(),
                       "Nome": nome_novo.strip(),
@@ -633,7 +591,7 @@ else:
                         .replace("Nome: ", "")
                         .strip()
                     )
-                    nome_arq = f"{serie_exc_escolhida}.csv"
+                    nome_arq = os.path.join(BASE_DIR, f"{serie_exc_escolhida}.csv")
                     if os.path.exists(nome_arq):
                       df_arq_turma = pd.read_csv(
                           nome_arq, sep=";", encoding="latin1", dtype={"RA": str}
@@ -1481,7 +1439,7 @@ else:
               key="turma_chamada_aoe_sel",
           )
 
-          arquivo_turma_atual = f"{turma_chamada_aoe}.csv"
+          arquivo_turma_atual = os.path.join(BASE_DIR, f"{turma_chamada_aoe}.csv")
           if not os.path.exists(arquivo_turma_atual):
             st.warning(
                 f"⚠️ O arquivo da turma '{turma_chamada_aoe}' ainda não foi"
@@ -1577,7 +1535,8 @@ else:
           )
           if uploaded_files_aoe:
             for uploaded_file in uploaded_files_aoe:
-              with open(uploaded_file.name, "wb") as f:
+              file_path = os.path.join(BASE_DIR, uploaded_file.name)
+              with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             st.session_state.alunos = carregar_todos_alunos()
             registrar_log(
@@ -1832,7 +1791,8 @@ else:
             )
             if uploaded_files_g:
               for uploaded_file in uploaded_files_g:
-                with open(uploaded_file.name, "wb") as f:
+                file_path = os.path.join(BASE_DIR, uploaded_file.name)
+                with open(file_path, "wb") as f:
                   f.write(uploaded_file.getbuffer())
               st.success(
                   f"✔️ {len(uploaded_files_g)} arquivo(s) enviado(s)!"
@@ -1870,7 +1830,7 @@ else:
 
               if st.form_submit_button("💾 Salvar Aluno", type="primary"):
                 if ra_novo_g.strip() and nome_novo_g.strip():
-                  nome_arq = f"{serie_novo_g}.csv"
+                  nome_arq = os.path.join(BASE_DIR, f"{serie_novo_g}.csv")
                   novo_registro = {
                       "RA": ra_novo_g.strip(),
                       "Nome": nome_novo_g.strip(),
@@ -1949,7 +1909,7 @@ else:
                         .replace("Nome: ", "")
                         .strip()
                     )
-                    nome_arq = f"{serie_exc_escolhida_g}.csv"
+                    nome_arq = os.path.join(BASE_DIR, f"{serie_exc_escolhida_g}.csv")
                     if os.path.exists(nome_arq):
                       df_arq_turma = pd.read_csv(
                           nome_arq, sep=";", encoding="latin1", dtype={"RA": str}
