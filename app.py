@@ -11,17 +11,22 @@ st.set_page_config(page_title="App Soichi MABE", layout="wide")
 PASTA_TURMAS = r"C:\Users\Usuário\OneDrive\Desktop\Ricardo\AppSoichiMABE"
 os.makedirs(PASTA_TURMAS, exist_ok=True)
 
-# Caminho completo para o logotipo
+# Caminhos para os arquivos auxiliares e logotipo
 LOGO_PATH = os.path.join(PASTA_TURMAS, "Logotipo Soichi Mabe.jpeg")
-
-# Caminho para o arquivo de credenciais (corrige o NameError)
 CREDENCIAIS_CSV = os.path.join(PASTA_TURMAS, "credenciais.csv")
+OCORRENCIAS_CSV = os.path.join(PASTA_TURMAS, "ocorrencias.csv")
 
 # Função para carregar as turmas dinamicamente com base nos arquivos .csv salvos na pasta
 def obter_series_turmas(pasta):
     padrao = os.path.join(pasta, "*.csv")
     arquivos = glob.glob(padrao)
-    turmas = [os.path.basename(f)[:-4] for f in arquivos]
+    turmas = []
+    # Filtra os arquivos para garantir que arquivos de sistema não apareçam como turmas
+    EXCLUIR = ["credenciais", "ocorrencias"]
+    for f in arquivos:
+        nome_base = os.path.basename(f)[:-4]
+        if nome_base.lower() not in EXCLUIR:
+            turmas.append(nome_base)
     return sorted(turmas)
 
 # Lista de séries/turmas atualizada automaticamente
