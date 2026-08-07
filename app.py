@@ -652,9 +652,30 @@ else:
               st.success("Tabela atualizada!")
               st.rerun()
 
-            if not st.session_state.alunos.empty:
+            df_alunos_ver = st.session_state.alunos.copy()
+            if not df_alunos_ver.empty:
+              # Campos de busca e filtro por Turma, Nome e RA
+              col_f1, col_f2, col_f3 = st.columns(3)
+              turmas_disponiveis = ["Todas"] + sorted(df_alunos_ver["Série"].dropna().unique().tolist())
+              filtro_turma = col_f1.selectbox("🏫 Filtrar por Turma:", options=turmas_disponiveis, key="filtro_turma_ver")
+              filtro_nome = col_f2.text_input("📝 Buscar por Nome do Aluno:", key="filtro_nome_ver")
+              filtro_ra = col_f3.text_input("🆔 Buscar por RA do Aluno:", key="filtro_ra_ver")
+
+              if filtro_turma != "Todas":
+                df_alunos_ver = df_alunos_ver[df_alunos_ver["Série"] == filtro_turma]
+              if filtro_nome.strip():
+                df_alunos_ver = df_alunos_ver[df_alunos_ver["Nome"].str.contains(filtro_nome.strip(), case=False, na=False)]
+              if filtro_ra.strip():
+                df_alunos_ver = df_alunos_ver[df_alunos_ver["RA"].astype(str).str.contains(filtro_ra.strip(), case=False, na=False)]
+
+              st.markdown(f"**Total de registros exibidos:** {len(df_alunos_ver)}")
+
+              # Reorganizar as colunas para destacar Turma, Nome e RA em primeiro lugar
+              cols_ordenadas = ["Série", "Nome", "RA"] + [c for c in df_alunos_ver.columns if c not in ["Série", "Nome", "RA"]]
+              df_alunos_ver = df_alunos_ver[[c for c in cols_ordenadas if c in df_alunos_ver.columns]]
+
               st.dataframe(
-                  st.session_state.alunos,
+                  df_alunos_ver,
                   use_container_width=True,
                   hide_index=True,
               )
