@@ -130,23 +130,62 @@ SERIES_TURMAS = [
 TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
 
 
-# --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (51 ARQUIVOS CSV) ---
+# --- UTILITÁRIOS PARA LOCALIZAR E LER ARQUIVOS DE TURMA ---
+import unicodedata
+import re
+
+def _normalize_text(s):
+  s = str(s or "")
+  s = unicodedata.normalize("NFKD", s)
+  s = s.encode("ASCII", "ignore").decode("ASCII")
+  s = re.sub(r"[^A-Za-z0-9]", "", s).lower()
+  return s
+
+
+def find_turma_file(serie):
+  """Procura um arquivo CSV no BASE_DIR (e subpastas) cujo nome corresponda
+  aproximadamente ao nome da série/turma informado. Retorna o caminho absoluto
+  do arquivo encontrado ou None se não houver correspondência.
+  """
+  alvo = _normalize_text(serie)
+  matches = []
+  for root, _, files in os.walk(BASE_DIR):
+    for f in files:
+      if f.lower().endswith(".csv"):
+        name, _ = os.path.splitext(f)
+        if alvo and alvo in _normalize_text(name):
+          matches.append(os.path.join(root, f))
+  if matches:
+    # retornar primeiro match ordenado para consistência
+    return sorted(matches)[0]
+  return None
+
+
+def robust_read_csv(path):
+  """Lê um CSV tentando primeiro com separador ';' e caindo para detecção
+  automática se necessário.
+  """
+  try:
+    return pd.read_csv(path, sep=';', encoding='latin1', dtype={"RA": str})
+  except Exception:
+    return pd.read_csv(path, sep=None, engine='python', encoding='latin1', dtype={"RA": str})
+
+
+# --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (55 ARQUIVOS CSV) ---
 def carregar_todos_alunos():
   """Carrega todos os arquivos de turmas (lista SERIES_TURMAS) tentando
-  detectar automaticamente o separador do CSV e garantindo que as colunas
-  essenciais existam (RA, Nome, Série, Presenças, Faltas).
+  localizar arquivos por similaridade de nome e detectar automaticamente o
+  separador do CSV. Garante que as colunas essenciais existam.
   """
   lista_dfs = []
   for serie in SERIES_TURMAS:
-    arq = os.path.join(BASE_DIR, f"{serie}.csv")
+    arq = find_turma_file(serie)
+    # se não encontrar arquivo aproximado, usar caminho padrão (possível para criação)
+    if not arq:
+      arq = os.path.join(BASE_DIR, f"{serie}.csv")
     if os.path.exists(arq):
       try:
-        # Tentar ler com detecção automática de separador para maior robustez
-        try:
-          df_t = pd.read_csv(arq, sep=';', encoding='latin1', dtype={"RA": str})
-        except Exception:
-          # fallback para detecção automática (engine='python')
-          df_t = pd.read_csv(arq, sep=None, engine='python', encoding='latin1', dtype={"RA": str})
+        df_t = robust_read_csv(arq)
 
         # Normalizar nome das colunas removendo espaços em branco extras
         df_t.columns = [c.strip() for c in df_t.columns]
@@ -169,7 +208,6 @@ def carregar_todos_alunos():
 
         lista_dfs.append(df_t)
       except Exception as e:
-        # Registrar aviso em vez de erro para não interromper processamento de outras turmas
         st.warning(f"Aviso: falha ao ler o arquivo {arq}. Ignorando arquivo. Detalhe: {e}")
 
   if lista_dfs:
@@ -620,7 +658,7 @@ else:
                 "Selecione a Série / Turma:", options=SERIES_TURMAS, key="turma_chamada_gestao_sel",
             )
 
-            arquivo_turma_g = os.path.join(BASE_DIR, f"{turma_chamada_gestao}.csv")
+            arquivo_turma_g = find_turma_file(turma_chamada_gestao) or os.path.join(BASE_DIR, f"{turma_chamada_gestao}.csv")
             if not os.path.exists(arquivo_turma_g):
               st.warning(
                   f"⚠️ O arquivo da turma '{turma_chamada_gestao}' ainda não foi criado ou enviado via CSV."
@@ -634,7 +672,7 @@ else:
                   st.success(f"Turma {turma_chamada_gestao} inicializada com sucesso!")
                   st.rerun()
             else:
-              df_turma_g = pd.read_csv(arquivo_turma_g, sep=";", encoding="latin1", dtype={"RA": str})
+              df_turma_g = robust_read_csv(arquivo_turma_g)
               if df_turma_g.empty:
                 st.info("Esta turma não possui alunos cadastrados.")
               else:
@@ -1575,7 +1613,7 @@ else:
               key="turma_chamada_aoe_sel",
           )
 
-          arquivo_turma_atual = os.path.join(BASE_DIR, f"{turma_chamada_aoe}.csv")
+          arquivo_turma_atual = find_turma_file(turma_chamada_aoe) or os.path.join(BASE_DIR, f"{turma_chamada_aoe}.csv")
           if not os.path.exists(arquivo_turma_atual):
             st.warning(
                 f"⚠️ O arquivo da turma '{turma_chamada_aoe}' ainda não foi"
@@ -1601,9 +1639,7 @@ else:
                 st.success(f"Turma {turma_chamada_aoe} inicializada com sucesso!")
                 st.rerun()
           else:
-            df_turma_aoe = pd.read_csv(
-                arquivo_turma_atual, sep=";", encoding="latin1", dtype={"RA": str}
-            )
+            df_turma_aoe = robust_read_csv(arquivo_turma_atual)
             if df_turma_aoe.empty:
               st.info("Esta turma não possui alunos cadastrados.")
             else:
