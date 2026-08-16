@@ -70,7 +70,7 @@ CARGOS_GESTAO_SEDUC = [
     "Secretário de Escola",
 ]
 
-# Escopo Completo de Turmas: 51 Turmas (Ensino Fundamental 26 + Ensino Médio 25)
+# Escopo Completo de Turmas: 55 Turmas (Ensino Fundamental 26 + Ensino Médio 25)
 SERIES_TURMAS = [
     # Ensino Fundamental (6º ao 9º Ano) - 26 turmas
     "6º Ano A",
@@ -494,16 +494,18 @@ else:
 
         with aba_alunos:
           st.subheader(
-              "📋 Gerenciamento, Upload e Alunos Individuais (51 Turmas Mapeadas)"
+              "📋 Gerenciamento, Upload e Alunos Individuais (55 Turmas Mapeadas)"
           )
           (
               sub_aba_up,
               sub_aba_cad_aluno,
+              sub_aba_chamada,
               sub_aba_exc_aluno,
               sub_aba_ver_alunos,
           ) = st.tabs([
               "📁 Upload CSV",
               "➕ Incluir Aluno Individual",
+              "📅 Registro de Chamada",
               "🗑️ Excluir Aluno Individual",
               "📊 Visualizar Alunos",
           ])
@@ -605,6 +607,63 @@ else:
                     st.rerun()
                 else:
                   st.error("Preencha o RA e o Nome do Aluno.")
+
+          with sub_aba_chamada:
+            st.subheader("📅 Registro de Chamada - 55 Turmas Cadastradas")
+            st.markdown("Realize o registro diário de presenças e faltas por turma:")
+
+            col_ch1_g, col_ch2_g = st.columns(2)
+            data_chamada_gestao = col_ch1_g.date_input(
+                "Data do Registro de Chamada:", value=date.today(), key="data_chamada_gestao_picker",
+            )
+            turma_chamada_gestao = col_ch2_g.selectbox(
+                "Selecione a Série / Turma:", options=SERIES_TURMAS, key="turma_chamada_gestao_sel",
+            )
+
+            arquivo_turma_g = os.path.join(BASE_DIR, f"{turma_chamada_gestao}.csv")
+            if not os.path.exists(arquivo_turma_g):
+              st.warning(
+                  f"⚠️ O arquivo da turma '{turma_chamada_gestao}' ainda não foi criado ou enviado via CSV."
+              )
+              with st.form("form_criar_turma_gestao_vazia"):
+                if st.form_submit_button("Criar Turma Vazia"):
+                  pd.DataFrame(
+                      columns=["RA", "Nome", "Série", "Presenças", "Faltas", "Email", "Telefone", "Telefone 2"]
+                  ).to_csv(arquivo_turma_g, sep=";", index=False, encoding="latin1")
+                  st.session_state.alunos = carregar_todos_alunos()
+                  st.success(f"Turma {turma_chamada_gestao} inicializada com sucesso!")
+                  st.rerun()
+            else:
+              df_turma_g = pd.read_csv(arquivo_turma_g, sep=";", encoding="latin1", dtype={"RA": str})
+              if df_turma_g.empty:
+                st.info("Esta turma não possui alunos cadastrados.")
+              else:
+                st.markdown(f"### Alunos da Turma: {turma_chamada_gestao}")
+                st.markdown("Marque abaixo os alunos que receberão **Falta** na chamada de hoje (os demais computarão Presença automática):")
+
+                with st.form(key=f"form_chamada_turma_gestao_{turma_chamada_gestao}"):
+                  lista_faltosos_g = []
+                  for idx, row in df_turma_g.iterrows():
+                    falta_marcada_g = st.checkbox(
+                        f"RA: {row['RA']} — {row['Nome']}", key=f"faltoso_gestao_{turma_chamada_gestao}_{row['RA']}",
+                    )
+                    if falta_marcada_g:
+                      lista_faltosos_g.append(row['RA'])
+
+                  btn_salvar_chamada_g = st.form_submit_button("💾 Salvar Chamada do Dia", type="primary")
+                  if btn_salvar_chamada_g:
+                    for idx, row in df_turma_g.iterrows():
+                      ra_aluno_g = row['RA']
+                      if ra_aluno_g in lista_faltosos_g:
+                        df_turma_g.loc[df_turma_g['RA'] == ra_aluno_g, 'Faltas'] += 1
+                      else:
+                        df_turma_g.loc[df_turma_g['RA'] == ra_aluno_g, 'Presenças'] += 1
+
+                    df_turma_g.to_csv(arquivo_turma_g, sep=";", index=False, encoding="latin1")
+                    st.session_state.alunos = carregar_todos_alunos()
+                    registrar_log(f"Gestão {usuario_ativo} realizou chamada da turma {turma_chamada_gestao}", "N/A", usuario_ativo)
+                    st.success(f"✔️ Chamada da turma {turma_chamada_gestao} salva e computada com sucesso!")
+                    st.rerun()
 
           with sub_aba_exc_aluno:
             st.markdown("### 🗑️ Excluir Aluno Individualmente")
@@ -1258,7 +1317,7 @@ else:
           col_rel_tit, col_rel_btn = st.columns([4, 1])
           col_rel_tit.subheader(
               "📈 Relatório Avançado de Probabilidade, Risco e Contagem"
-              " Quantitativa (SEDUC-SP & MEC - 51 Turmas)"
+              " Quantitativa (SEDUC-SP & MEC - 55 Turmas)"
           )
           if col_rel_btn.button("🔄 Atualizar Relatório", key="btn_ref_relatorio"):
             st.session_state.alunos = carregar_todos_alunos()
@@ -1266,7 +1325,7 @@ else:
             st.rerun()
 
           st.markdown("""
-                    > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas 51 turmas (Ensino Fundamental e Ensino Médio), identificando alunos em risco de evasão escolar.
+                              > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** O controle de frequência é obrigatório, sendo exigido o **mínimo de 75% de frequência** sobre o total de chamadas/aulas realizadas para aprovação do aluno. Este painel consolida a **contagem quantitativa de presenças e faltas** apuradas nas 55 turmas (Ensino Fundamental e Ensino Médio), identificando alunos em risco de evasão escolar.
                     """)
 
           df_alunos_audit = st.session_state.alunos.copy()
@@ -1348,7 +1407,7 @@ else:
             st.markdown("---")
             st.markdown(
                 "### 🏫 Contagem Quantitativa Agrupada por Série / Turma"
-                " (51 Turmas Sincronizadas)"
+                " (55 Turmas Sincronizadas)"
             )
             df_base_turmas = pd.DataFrame({"Série": SERIES_TURMAS})
 
@@ -1496,12 +1555,12 @@ else:
 
         aba_aoe_chamada_geral, aba_aoe_upload, aba_aoe_relatorio = st.tabs([
             "📅 Lista de Chamada (Presença e Falta)",
-            "📁 Upload de Arquivos CSV (51 Turmas)",
+            "📁 Upload de Arquivos CSV (55 Turmas)",
             "📈 Relatório Avançado & Risco (SEDUC-SP & MEC)",
         ])
 
         with aba_aoe_chamada_geral:
-          st.subheader("📅 Registro de Chamada - 51 Turmas Cadastradas")
+          st.subheader("📅 Registro de Chamada - 55 Turmas Cadastradas")
           st.markdown("Realize o registro diário de presenças e faltas por turma:")
 
           col_ch1, col_ch2 = st.columns(2)
@@ -1597,7 +1656,7 @@ else:
 
         with aba_aoe_upload:
           st.subheader(
-              "📁 Upload de Arquivos CSV (51 Turmas) e Atualização Automática"
+              "📁 Upload de Arquivos CSV (55 Turmas) e Atualização Automática"
           )
           st.markdown(
               "Envie um ou mais arquivos CSV contendo a listagem de turmas e"
@@ -1631,7 +1690,7 @@ else:
         with aba_aoe_relatorio:
           st.subheader(
               "📈 Relatório Avançado de Probabilidade, Risco e Contagem"
-              " Quantitativa (SEDUC-SP & MEC - 51 Turmas)"
+              " Quantitativa (SEDUC-SP & MEC - 55 Turmas)"
           )
           st.markdown("""
                     > **Legislação de Referência (LDB / MEC - Art. 24, VI & SEDUC-SP):** Monitoramento diário obrigatório de frequência escolar exigindo **mínimo de 75%** de frequência. Este painel exibe a contagem quantitativa geral, contagem agrupada por série/turma, e listagem detalhada por aluno com alertas automáticos.
@@ -1709,7 +1768,7 @@ else:
             st.markdown("---")
             st.markdown(
                 "### 🏫 Contagem Quantitativa Agrupada por Série / Turma"
-                " (51 Turmas Sincronizadas)"
+                " (55 Turmas Sincronizadas)"
             )
             df_base_t_aoe = pd.DataFrame({"Série": SERIES_TURMAS})
             df_agr_aoe = (
