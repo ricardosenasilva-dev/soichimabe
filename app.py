@@ -132,25 +132,45 @@ TURNOS_GOE = ["Manhã", "Tarde", "Noite"]
 
 # --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (51 ARQUIVOS CSV) ---
 def carregar_todos_alunos():
+  """Carrega todos os arquivos de turmas (lista SERIES_TURMAS) tentando
+  detectar automaticamente o separador do CSV e garantindo que as colunas
+  essenciais existam (RA, Nome, Série, Presenças, Faltas).
+  """
   lista_dfs = []
   for serie in SERIES_TURMAS:
     arq = os.path.join(BASE_DIR, f"{serie}.csv")
     if os.path.exists(arq):
       try:
-        df_t = pd.read_csv(arq, sep=";", encoding="latin1", dtype={"RA": str})
-        df_t["Presenças"] = (
-            pd.to_numeric(df_t["Presenças"], errors="coerce")
-            .fillna(0)
-            .astype(int)
-        )
-        df_t["Faltas"] = (
-            pd.to_numeric(df_t["Faltas"], errors="coerce").fillna(0).astype(int)
-        )
+        # Tentar ler com detecção automática de separador para maior robustez
+        try:
+          df_t = pd.read_csv(arq, sep=';', encoding='latin1', dtype={"RA": str})
+        except Exception:
+          # fallback para detecção automática (engine='python')
+          df_t = pd.read_csv(arq, sep=None, engine='python', encoding='latin1', dtype={"RA": str})
+
+        # Normalizar nome das colunas removendo espaços em branco extras
+        df_t.columns = [c.strip() for c in df_t.columns]
+
+        # Garantir colunas essenciais
         if "Série" not in df_t.columns:
           df_t["Série"] = serie
+        if "Presenças" not in df_t.columns:
+          df_t["Presenças"] = 0
+        if "Faltas" not in df_t.columns:
+          df_t["Faltas"] = 0
+
+        # Converter Presenças e Faltas para inteiros seguros
+        df_t["Presenças"] = pd.to_numeric(df_t["Presenças"], errors="coerce").fillna(0).astype(int)
+        df_t["Faltas"] = pd.to_numeric(df_t["Faltas"], errors="coerce").fillna(0).astype(int)
+
+        # Garantir RA como string
+        if "RA" in df_t.columns:
+          df_t["RA"] = df_t["RA"].astype(str)
+
         lista_dfs.append(df_t)
       except Exception as e:
-        st.error(f"Erro ao ler o arquivo {arq}: {e}")
+        # Registrar aviso em vez de erro para não interromper processamento de outras turmas
+        st.warning(f"Aviso: falha ao ler o arquivo {arq}. Ignorando arquivo. Detalhe: {e}")
 
   if lista_dfs:
     return pd.concat(lista_dfs, ignore_index=True)
