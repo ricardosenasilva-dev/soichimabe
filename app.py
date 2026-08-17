@@ -171,6 +171,64 @@ def robust_read_csv(path):
     return pd.read_csv(path, sep=None, engine='python', encoding='latin1', dtype={"RA": str})
 
 
+def normalize_turma_df(df, serie_name=None):
+  """Normaliza colunas de um DataFrame de turma para garantir colunas
+  'RA', 'Nome', 'Série', 'Presenças', 'Faltas', 'Email', 'Telefone', 'Telefone 2'.
+  Aceita variações comuns de nomes de colunas (com/sem acentos, diferentes rótulos).
+  """
+  if df is None:
+    return pd.DataFrame(columns=["RA","Nome","Série","Presenças","Faltas","Email","Telefone","Telefone 2"]) 
+  # strip column names
+  df = df.copy()
+  df.columns = [c.strip() for c in df.columns]
+
+  # Build mapping from normalized column name to original
+  col_map = {}
+  for c in df.columns:
+    nc = _normalize_text(c)
+    col_map[nc] = c
+
+  # helper to pick first matching candidate
+  def pick(*candidates):
+    for cand in candidates:
+      nc = _normalize_text(cand)
+      if nc in col_map:
+        return col_map[nc]
+    return None
+
+  # common candidates
+  nome_col = pick('Nome','Nome do Aluno','nome_aluno','aluno')
+  ra_col = pick('RA','ra','ra_aluno','numero de chamada','nº de chamada','n_de_chamada','num_chamada')
+  pres_col = pick('Presenças','Presencas','Presença','Presenca','presencas')
+  falt_col = pick('Faltas','Falta','faltas')
+  serie_col = pick('Série','Serie','Turma')
+  email_col = pick('Email','E-mail','email')
+  tel_col = pick('Telefone','Telefone 1','Tel','telefone')
+  tel2_col = pick('Telefone 2','Telefone2','telefone2')
+
+  # Create standardized DataFrame
+  std = pd.DataFrame()
+  std['RA'] = df[ra_col].astype(str) if ra_col and ra_col in df.columns else df.index.astype(str)
+  std['Nome'] = df[nome_col].astype(str) if nome_col and nome_col in df.columns else df.iloc[:,0].astype(str) if df.shape[1]>0 else ''
+  std['Série'] = df[serie_col].astype(str) if serie_col and serie_col in df.columns else (serie_name or '')
+
+  # Presenças / Faltas numeric
+  if pres_col and pres_col in df.columns:
+    std['Presenças'] = pd.to_numeric(df[pres_col], errors='coerce').fillna(0).astype(int)
+  else:
+    std['Presenças'] = 0
+  if falt_col and falt_col in df.columns:
+    std['Faltas'] = pd.to_numeric(df[falt_col], errors='coerce').fillna(0).astype(int)
+  else:
+    std['Faltas'] = 0
+
+  std['Email'] = df[email_col].astype(str) if email_col and email_col in df.columns else ''
+  std['Telefone'] = df[tel_col].astype(str) if tel_col and tel_col in df.columns else ''
+  std['Telefone 2'] = df[tel2_col].astype(str) if tel2_col and tel2_col in df.columns else ''
+
+  return std
+
+
 # --- CARREGAMENTO AUTOMÁTICO E SINCRONIZADO DOS ALUNOS (55 ARQUIVOS CSV) ---
 def carregar_todos_alunos():
   """Carrega todos os arquivos de turmas (lista SERIES_TURMAS) tentando
@@ -185,27 +243,11 @@ def carregar_todos_alunos():
       arq = os.path.join(BASE_DIR, f"{serie}.csv")
     if os.path.exists(arq):
       try:
-        df_t = robust_read_csv(arq)
+        df_t_raw = robust_read_csv(arq)
+        # Normalizar e padronizar colunas para o formato interno
+        df_t = normalize_turma_df(df_t_raw, serie_name=serie)
 
-        # Normalizar nome das colunas removendo espaços em branco extras
-        df_t.columns = [c.strip() for c in df_t.columns]
-
-        # Garantir colunas essenciais
-        if "Série" not in df_t.columns:
-          df_t["Série"] = serie
-        if "Presenças" not in df_t.columns:
-          df_t["Presenças"] = 0
-        if "Faltas" not in df_t.columns:
-          df_t["Faltas"] = 0
-
-        # Converter Presenças e Faltas para inteiros seguros
-        df_t["Presenças"] = pd.to_numeric(df_t["Presenças"], errors="coerce").fillna(0).astype(int)
-        df_t["Faltas"] = pd.to_numeric(df_t["Faltas"], errors="coerce").fillna(0).astype(int)
-
-        # Garantir RA como string
-        if "RA" in df_t.columns:
-          df_t["RA"] = df_t["RA"].astype(str)
-
+        # Garantir que colunas essenciais existam e tipos corretos já são tratadas
         lista_dfs.append(df_t)
       except Exception as e:
         st.warning(f"Aviso: falha ao ler o arquivo {arq}. Ignorando arquivo. Detalhe: {e}")
@@ -672,7 +714,7 @@ else:
                   st.success(f"Turma {turma_chamada_gestao} inicializada com sucesso!")
                   st.rerun()
             else:
-              df_turma_g = robust_read_csv(arquivo_turma_g)
+              df_turma_g = normalize_turma_df(robust_read_csv(arquivo_turma_g), serie_name=turma_chamada_gestao)
               if df_turma_g.empty:
                 st.info("Esta turma não possui alunos cadastrados.")
               else:
@@ -1639,7 +1681,7 @@ else:
                 st.success(f"Turma {turma_chamada_aoe} inicializada com sucesso!")
                 st.rerun()
           else:
-            df_turma_aoe = robust_read_csv(arquivo_turma_atual)
+            df_turma_aoe = normalize_turma_df(robust_read_csv(arquivo_turma_atual), serie_name=turma_chamada_aoe)
             if df_turma_aoe.empty:
               st.info("Esta turma não possui alunos cadastrados.")
             else:
